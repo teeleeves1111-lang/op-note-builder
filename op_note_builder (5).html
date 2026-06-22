@@ -1,0 +1,2690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Endovascular Op Note &amp; Coding Assistant</title>
+<style>
+  :root{
+    --paper:#F7F6F1;
+    --ink:#1A2238;
+    --ink-soft:#4A5170;
+    --line:#D9D6CB;
+    --accent:#2F6F6B;
+    --accent-soft:#E4EFEE;
+    --flag:#B5562C;
+    --flag-soft:#FBEAE0;
+    --pending:#B8860B;
+    --pending-soft:#FCF3D9;
+    --pending-ink:#7A5E0A;
+    --card:#FFFFFF;
+    --mono: 'SFMono-Regular', 'JetBrains Mono', Consolas, Menlo, monospace;
+    --serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;
+  }
+  .shell{max-width:1180px; margin:0 auto; padding:28px 24px 80px;}
+  header.top{display:flex; align-items:baseline; justify-content:space-between; border-bottom:2px solid var(--ink); padding-bottom:14px; margin-bottom:18px;}
+  header.top h1{font-family:var(--serif); font-weight:600; font-size:23px; margin:0; letter-spacing:-0.01em;}
+  header.top .tag{font-size:12px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.08em;}
+  .tabs{display:flex; gap:6px; margin-bottom:20px; border-bottom:1px solid var(--line);}
+  .tab{
+    padding:10px 16px; cursor:pointer; font-size:13.5px; font-weight:600; color:var(--ink-soft);
+    border-bottom:2px solid transparent; user-select:none;
+  }
+  .tab.active{color:var(--ink); border-bottom:2px solid var(--accent);}
+  .tab:hover{color:var(--ink);}
+  .panel{display:none;}
+  .panel.active{display:block;}
+  .layout{display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start;}
+  @media (max-width:980px){.layout{grid-template-columns:1fr;}}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:3px; padding:18px 20px; margin-bottom:16px;}
+  .card h2{font-family:var(--serif); font-size:15px; margin:0 0 12px; padding-bottom:8px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px;}
+  .card h2 .n{display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; background:var(--ink); color:var(--paper); font-size:10px; font-family:var(--sans); font-weight:700;}
+  label{display:block; font-size:11.5px; font-weight:600; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em; margin:10px 0 4px;}
+  label:first-child{margin-top:0;}
+  input[type=text], input[type=number], select, textarea{
+    width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:3px; font-size:13.5px;
+    font-family:var(--sans); background:#fff; color:var(--ink);
+  }
+  textarea{resize:vertical; line-height:1.45;}
+  .row{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .row3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;}
+  .chiprow{display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;}
+  .chip{
+    border:1px solid var(--line); background:#fff; border-radius:14px; padding:4px 11px; font-size:12px;
+    cursor:pointer; color:var(--ink-soft); user-select:none;
+  }
+  .chip:hover{border-color:var(--accent); color:var(--accent);}
+  .chip.on{background:var(--accent); color:#fff; border-color:var(--accent);}
+  .hint{font-size:11.5px; color:var(--ink-soft); margin-top:4px; line-height:1.4;}
+  button{
+    font-family:var(--sans); font-weight:600; font-size:12.5px; cursor:pointer; border-radius:3px;
+    padding:9px 14px; border:1px solid var(--ink); background:var(--ink); color:#fff;
+  }
+  button.secondary{background:#fff; color:var(--ink); border:1px solid var(--line);}
+  button.secondary:hover{border-color:var(--ink);}
+  button.small{padding:5px 10px; font-size:11.5px;}
+  button.danger{background:#fff; color:var(--flag); border:1px solid var(--flag);}
+  button.listening{background:var(--flag); border-color:var(--flag); color:#fff; animation:dictatePulse 1.3s ease-in-out infinite;}
+  @keyframes dictatePulse{0%{opacity:1;}50%{opacity:.62;}100%{opacity:1;}}
+  .vessel-block{border:1px solid var(--line); border-radius:3px; padding:14px; margin-bottom:12px; background:#FCFBF8; position:relative;}
+  .vessel-block .vhead{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
+  .vessel-block .vhead .vtitle{font-weight:700; font-size:13px;}
+  .modgrid{display:flex; flex-wrap:wrap; gap:14px; margin-top:6px;}
+  .modgrid label.inline{display:flex; align-items:center; gap:6px; text-transform:none; font-weight:500; font-size:12.5px; color:var(--ink); margin:0;}
+  .modgrid input[type=checkbox]{width:14px; height:14px;}
+  .sizefield{margin-top:6px;}
+  .note-output{
+    white-space:pre-wrap; font-family:var(--mono); font-size:12.3px; line-height:1.55; background:#FCFBF7;
+    border:1px solid var(--line); padding:14px; border-radius:3px; max-height:560px; overflow-y:auto;
+  }
+  .code-list{display:flex; flex-direction:column; gap:6px;}
+  .code-item{display:flex; align-items:flex-start; gap:10px; padding:8px 10px; background:var(--accent-soft); border-radius:3px; border-left:3px solid var(--accent);}
+  .code-item .code{font-family:var(--mono); font-weight:700; font-size:13px; min-width:60px;}
+  .code-item .desc{font-size:12px; color:var(--ink-soft); line-height:1.4;}
+  .flag-item{display:flex; gap:10px; padding:8px 10px; background:var(--flag-soft); border-radius:3px; border-left:3px solid var(--flag); font-size:12px; color:#7A3A1D; line-height:1.4;}
+  .flag-item b{color:var(--flag);}
+  .pending-item{display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:10px 12px; background:var(--pending-soft); border-radius:3px; border-left:3px solid var(--pending); font-size:12.5px; color:var(--pending-ink); line-height:1.4;}
+  .pending-item .ptext{flex:1; min-width:160px;}
+  .pending-item button{background:#fff; color:var(--pending-ink); border:1px solid var(--pending); padding:5px 10px; font-size:11.5px;}
+  .pending-item button:hover{background:var(--pending); color:#fff;}
+  .pending-item input[type=number]{width:90px; display:inline-block; padding:5px 8px;}
+  .toolbar{display:flex; gap:8px; margin-top:10px;}
+  .stub{padding:40px 20px; text-align:center; color:var(--ink-soft);}
+  .stub textarea{margin-top:14px; min-height:180px;}
+  .footer-note{font-size:11px; color:var(--ink-soft); margin-top:24px; line-height:1.5; border-top:1px solid var(--line); padding-top:12px;}
+  .savebadge{font-size:11px; color:var(--accent); opacity:0; transition:opacity .3s;}
+  .savebadge.show{opacity:1;}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <header class="top">
+    <h1>Endovascular Op Note &amp; Coding Assistant</h1>
+    <div class="tag">Fixed templates · no PHI fields · code logic runs locally · voice input is optional &amp; cloud-based</div>
+  </header>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="angio">Angiogram / Intervention</div>
+    <div class="tab" data-tab="fistula">Fistulogram</div>
+    <div class="tab" data-tab="venogram">Venogram / Venous Stent</div>
+    <div class="tab" data-tab="notegen">Generate Op Note</div>
+  </div>
+
+  <!-- ===================== ANGIOGRAM / INTERVENTION ===================== -->
+
+  <div class="panel active" id="panel-angio">
+    <div class="card">
+      <h2><span class="n">1</span>Paste your finished dictated note</h2>
+      <textarea id="noteInput" rows="9" placeholder="Paste the full procedure description here — e.g. 'The anterior tibial artery was cannulated... the distal occlusion was treated with a 2 mm balloon... the peroneal artery was catheterized... treated with 2.5 mm balloon...' etc."></textarea>
+      <div class="toolbar" style="margin-top:8px;">
+        <button id="dictateBtn" type="button" class="secondary small">🎤 Dictate</button>
+        <span class="hint" id="dictateStatus"></span>
+      </div>
+      <div class="hint" id="dictateCaveat">Voice input uses your browser's built-in speech recognition — audio is sent to your browser vendor's cloud to transcribe (same as phone dictation). Speak procedure/vessel details only, not patient name or MRN. Works best in Chrome or Edge; tap again to pause, edit text any time, tap again to resume.</div>
+      <div class="hint">Aortogram/leg-angiogram (75625 / 75710 / 75716), ultrasound guidance, and bridging-lesion vessels are detected automatically from the text below — anything not mentioned will prompt you to confirm before its code is generated.</div>
+      <div class="toolbar">
+        <button id="analyzeBtn">Analyze &amp; suggest codes</button>
+        <button id="newPatientBtn" class="secondary small" type="button">↺ New patient / start over</button>
+        <span class="hint" id="parseResult"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="n">2</span>Vessels identified <span style="font-weight:400; color:var(--ink-soft); font-size:11.5px; text-transform:none;">— edit/correct before trusting the codes</span></h2>
+      <div id="vesselList"></div>
+      <button id="addVesselBtn" class="secondary small">+ Add vessel manually</button>
+    </div>
+
+    <div class="card" id="pendingCard" style="display:none; border-color:var(--pending);">
+      <h2 style="color:var(--pending-ink);">⏳ Needs your input before these codes finalize</h2>
+      <div id="pendingList" style="display:flex; flex-direction:column; gap:8px;"></div>
+    </div>
+
+    <div class="card">
+      <h2>Suggested CPT codes</h2>
+      <div class="code-list" id="codeOut"></div>
+      <div id="flagOut" style="margin-top:8px; display:flex; flex-direction:column; gap:6px;"></div>
+      <div class="toolbar">
+        <button id="copyCodesBtn" class="secondary small">Copy code list</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== FISTULOGRAM (stub) ===================== -->
+
+  <div class="panel" id="panel-fistula">
+    <div class="card">
+      <div class="stub">
+        <div style="font-family:var(--serif); font-size:16px; color:var(--ink);">Fistulogram module not built yet</div>
+        <div class="hint">Paste your Epic SmartPhrase body for fistulograms below and I'll build this tab to match it next, the same way I built the angiogram/intervention tab from your template.</div>
+        <textarea id="fistulaTemplate" placeholder="Paste your fistulogram SmartPhrase body here..."></textarea>
+        <div class="toolbar" style="justify-content:center;">
+          <button id="saveFistulaBtn" class="secondary small">Save template</button>
+          <span class="savebadge" id="fistulaSaved">Saved</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== VENOGRAM (stub) ===================== -->
+
+  <div class="panel" id="panel-venogram">
+    <div class="card">
+      <div class="stub">
+        <div style="font-family:var(--serif); font-size:16px; color:var(--ink);">Venogram / venous stent module not built yet</div>
+        <div class="hint">Paste your Epic SmartPhrase body for venograms/venous stenting below and I'll build this tab next.</div>
+        <textarea id="venoTemplate" placeholder="Paste your venogram SmartPhrase body here..."></textarea>
+        <div class="toolbar" style="justify-content:center;">
+          <button id="saveVenoBtn" class="secondary small">Save template</button>
+          <span class="savebadge" id="venoSaved">Saved</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== GENERATE OP NOTE ===================== -->
+
+  <div class="panel" id="panel-notegen">
+    <div class="card">
+      <h2><span class="n">1</span>Angiographic findings <span style="font-weight:400; color:var(--ink-soft); font-size:11.5px; text-transform:none;">— describe what you saw, fast. Anything you don't mention defaults to patent. Mention "right"/"left" per vessel and it's picked up automatically.</span></h2>
+      <textarea id="ngFindingsInput" rows="4" placeholder="e.g. right SFA 70% stenosis, popliteal occluded, peroneal 50% stenosis, rest patent"></textarea>
+      <div class="toolbar" style="margin-top:6px;">
+        <button id="ngFindingsDictateBtn" type="button" class="secondary small">🎤 Dictate</button>
+        <span class="hint" id="ngFindingsDictateStatus"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="n">2</span>Intervention <span style="font-weight:400; color:var(--ink-soft); font-size:11.5px; text-transform:none;">— only what was actually treated. A vessel here gets an Intervention paragraph and a Procedure Performed line; a vessel that's only in Findings above doesn't.</span></h2>
+      <textarea id="ngInterventionInput" rows="4" placeholder="e.g. right SFA stented with 6mm x 150mm SE stent, popliteal angioplasty with 5mm balloon"></textarea>
+      <div class="toolbar" style="margin-top:6px;">
+        <button id="ngInterventionDictateBtn" type="button" class="secondary small">🎤 Dictate</button>
+        <span class="hint" id="ngInterventionDictateStatus"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="n">3</span>Access <span style="font-weight:400; color:var(--ink-soft); font-size:11.5px; text-transform:none;">— select all that were used. Antegrade/retrograde, closure default, and aortogram inclusion are all derived from this plus the treated side(s) above — nothing else to fill in.</span></h2>
+      <label>Primary access</label>
+      <div class="chiprow" id="ngPrimaryAccessChips">
+        <span class="chip" data-primary-access="leftFemoral">Left femoral</span>
+        <span class="chip" data-primary-access="rightFemoral">Right femoral</span>
+        <span class="chip" data-primary-access="leftBrachial">Left brachial</span>
+        <span class="chip" data-primary-access="rightBrachial">Right brachial</span>
+      </div>
+      <label>Secondary / bailout access <span style="font-weight:400; text-transform:none;">— retrograde pedal/tibial access; auto-attached to whichever leg has the lesion that needed it, no side click required</span></label>
+      <div class="chiprow" id="ngSecondaryAccessChips">
+        <span class="chip" data-secondary-access="pt">PT</span>
+        <span class="chip" data-secondary-access="at">AT</span>
+        <span class="chip" data-secondary-access="popliteal">Popliteal</span>
+        <span class="chip" data-secondary-access="peroneal">Peroneal</span>
+      </div>
+      <label>Closure <span id="ngClosureAutoNote" class="hint" style="display:none; text-transform:none; font-weight:400;">— brachial-only access defaults to manual pressure</span></label>
+      <div class="chiprow" id="ngClosureChips">
+        <span class="chip" data-closure="manual">Manual</span>
+        <span class="chip" data-closure="perclose">Perclose</span>
+        <span class="chip" data-closure="mynx">Mynx</span>
+        <span class="chip" data-closure="angioseal">Angio-Seal</span>
+      </div>
+    </div>
+
+    <div class="card" id="ngPendingCard" style="display:none; border-color:var(--pending);">
+      <h2 style="color:var(--pending-ink);">⏳ Needs your input <span style="font-weight:400; color:var(--ink-soft); font-size:11.5px; text-transform:none;">— optional. The note below already reflects your best answer or a placeholder either way.</span></h2>
+      <div id="ngPendingList" style="display:flex; flex-direction:column; gap:8px;"></div>
+    </div>
+
+    <div class="card" id="ngParsedCard">
+      <h2>Parsed <span style="font-weight:400; color:var(--ink-soft); font-size:11.5px; text-transform:none;">— review before trusting the note below; if something's wrong, edit the text above and it reparses</span></h2>
+      <div id="ngParsedList" class="hint"></div>
+    </div>
+
+    <div class="card" id="ngNormalCard">
+      <h2>Normal vessels <span style="font-weight:400; color:var(--ink-soft); font-size:11.5px; text-transform:none;">— auto-filled as patent from the exam-scope checklist</span></h2>
+      <div id="ngNormalList" class="hint"></div>
+    </div>
+
+    <div class="card">
+      <h2>Generated op note <span style="font-weight:400; color:var(--ink-soft); font-size:11.5px; text-transform:none;">— draft only, requires full physician review before charting</span></h2>
+      <div class="note-output" id="ngNoteOutput"></div>
+      <div class="toolbar">
+        <button id="ngCopyNoteBtn" class="secondary small">Copy note</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Suggested CPT codes <span style="font-weight:400; color:var(--ink-soft); font-size:11.5px; text-transform:none;">— professional billing view, derived from Findings/Intervention/Access above</span></h2>
+      <div class="code-list" id="ngCodeOut"></div>
+      <div id="ngFlagOut" style="margin-top:8px; display:flex; flex-direction:column; gap:6px;"></div>
+      <div class="toolbar">
+        <button id="ngCopyCodesBtn" class="secondary small">Copy code list</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-note">
+    Built on your Epic SmartPhrase template, with deterministic (non-AI) logic so output is predictable and auditable. CPT territory/code mapping reflects the 2026 lower-extremity revascularization code set (37254–37299). Always confirm modifier 59/XU exceptions and any vessel-count edge cases against the actual documentation before submitting — this tool drafts, it doesn't adjudicate. Optional voice dictation uses your browser's cloud speech recognition (not on-device) — the parsing/coding logic itself still runs entirely in this browser either way. The op note generator builds a deterministic draft from shorthand input only — every section, especially auto-filled "normal" findings and any bracketed placeholder, needs full physician review before it goes in the chart.
+  </div>
+
+</div>
+
+<script>
+// ---------- Tabs ----------
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('panel-'+t.dataset.tab).classList.add('active');
+  });
+});
+
+// ---------- Storage (stub templates) ----------
+async function loadStub(key, el, badgeEl){
+  try{
+    const r = await window.storage.get(key);
+    if(r && r.value) el.value = r.value;
+  }catch(e){ /* not set yet */ }
+}
+async function saveStub(key, el, badgeEl){
+  try{
+    await window.storage.set(key, el.value);
+    badgeEl.classList.add('show');
+    setTimeout(()=>badgeEl.classList.remove('show'), 1500);
+  }catch(e){ console.error('save failed', e); }
+}
+loadStub('fistula-template', document.getElementById('fistulaTemplate'));
+loadStub('veno-template', document.getElementById('venoTemplate'));
+document.getElementById('saveFistulaBtn').addEventListener('click', ()=>saveStub('fistula-template', document.getElementById('fistulaTemplate'), document.getElementById('fistulaSaved')));
+document.getElementById('saveVenoBtn').addEventListener('click', ()=>saveStub('veno-template', document.getElementById('venoTemplate'), document.getElementById('venoSaved')));
+
+// ---------- CPT code table (2026 LER, verified) ----------
+const CODE_TABLE = {
+  iliac: {
+    label: "Iliac",
+    maxAdditional: 2,
+    modalities: {
+      angioplasty: {straightforward:['37254','37255'], complex:['37258','37259']},
+      stent: {straightforward:['37256','37257'], complex:['37260','37261']}
+    },
+    ivl: {code:'37262', maxPerLeg:3},
+    atherNote: "Iliac atherectomy is not part of this code family — use Category III code 0238T, verify separately."
+  },
+  femoropopliteal: {
+    label: "Femoral/Popliteal",
+    maxAdditional: 1,
+    modalities: {
+      angioplasty: {straightforward:['37263','37264'], complex:['37265','37266']},
+      stent: {straightforward:['37267','37268'], complex:['37269','37270']},
+      atherectomy: {straightforward:['37271','37272'], complex:['37273','37274']},
+      stentAtherectomy: {straightforward:['37275','37276'], complex:['37277','37278']}
+    },
+    ivl: {code:'37279', maxPerLeg:2}
+  },
+  tibioperoneal: {
+    label: "Tibial/Peroneal",
+    maxAdditional: 2,
+    modalities: {
+      angioplasty: {straightforward:['37280','37281'], complex:['37282','37283']},
+      stent: {straightforward:['37284','37285'], complex:['37286','37287']},
+      atherectomy: {straightforward:['37288','37289'], complex:['37290','37291']},
+      stentAtherectomy: {straightforward:['37292','37293'], complex:['37294','37295']}
+    },
+    ivl: null
+  },
+  inframalleolar: {
+    label: "Inframalleolar",
+    maxAdditional: 1,
+    modalities: {
+      angioplasty: {straightforward:['37296','37297'], complex:['37298','37299']}
+    },
+    ivl: null
+  }
+};
+
+const TERRITORY_VESSELS = {
+  iliac: ["Common iliac","External iliac","Internal iliac","Iliac (unspecified — confirm segment)"],
+  femoropopliteal: ["Common femoral/profunda femoris","SFA/popliteal"],
+  tibioperoneal: ["Anterior tibial","Posterior tibial","Peroneal","Tibial (unspecified — confirm AT/PT/peroneal)"],
+  inframalleolar: ["Dorsalis pedis","Plantar"]
+};
+
+// Quick-pick balloon/IVL diameter chips, scoped to this practice's typical
+// ranges per territory. Convenience only — sizes don't affect which CPT
+// code is generated, only territory/modality/complexity/count do.
+const SIZE_CHIPS = {
+  iliac: { default: ['6mm','7mm','8mm'] },
+  femoropopliteal: {
+    'SFA/popliteal': ['4mm','5mm','6mm','7mm','8mm'] // spans SFA (5-8) and popliteal (4-6) since they're one billed vessel
+    // 'Common femoral/profunda femoris' intentionally has no chips — no stated range yet
+  },
+  tibioperoneal: { default: ['1.5mm','2mm','2.5mm','3mm','3.5mm','3.75mm'] }
+  // inframalleolar intentionally has no chips — no stated range yet
+};
+function getSizeChips(territory, vesselName){
+  const terr = SIZE_CHIPS[territory];
+  if(!terr) return [];
+  return terr[vesselName] || terr.default || [];
+}
+
+// ---------- Vessel rows ----------
+let vesselRows = [];
+let vesselSeq = 0;
+
+function addVesselRow(prefill){
+  const id = 'v'+(vesselSeq++);
+  vesselRows.push(Object.assign({
+    id, territory:'femoropopliteal', vessel:'SFA/popliteal', lesion:'straightforward', lesionConfirmed:false,
+    angioplasty:false, dcb:false, stent:false, stentType:'self-expanding', stentSize:'',
+    atherectomy:false, atherType:'directional', lithotripsy:false, ivlSize:'',
+    balloonSize:'', result:'good angiographic result with no residual stenosis'
+  }, prefill||{}));
+  renderVessels();
+  renderAll();
+}
+
+function removeVesselRow(id){
+  vesselRows = vesselRows.filter(v=>v.id!==id);
+  renderVessels();
+  renderAll();
+}
+
+function renderVessels(){
+  const wrap = document.getElementById('vesselList');
+  wrap.innerHTML = '';
+  vesselRows.forEach((v, idx)=>{
+    const block = document.createElement('div');
+    block.className = 'vessel-block';
+    block.innerHTML = `
+      <div class="vhead">
+        <span class="vtitle">Vessel ${idx+1}</span>
+        <button class="danger small" data-remove="${v.id}">Remove</button>
+      </div>
+      <div class="row3">
+        <div>
+          <label>Territory</label>
+          <select data-field="territory" data-id="${v.id}">
+            ${Object.keys(CODE_TABLE).map(k=>`<option value="${k}" ${v.territory===k?'selected':''}>${CODE_TABLE[k].label}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label>Vessel</label>
+          <select data-field="vessel" data-id="${v.id}">
+            ${TERRITORY_VESSELS[v.territory].map(name=>`<option value="${name}" ${v.vessel===name?'selected':''}>${name}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label>Lesion${v.lesionConfirmed ? '' : ' <span style="color:var(--pending-ink); font-weight:700;">— confirm</span>'}</label>
+          <select data-field="lesion" data-id="${v.id}" style="${v.lesionConfirmed ? '' : 'border-color:var(--pending); background:var(--pending-soft);'}">
+            ${!v.lesionConfirmed ? `<option value="" selected disabled hidden>— select stenosis or occlusion —</option>` : ''}
+            <option value="straightforward" ${v.lesionConfirmed && v.lesion==='straightforward'?'selected':''}>Stenosis (straightforward)</option>
+            <option value="complex" ${v.lesionConfirmed && v.lesion==='complex'?'selected':''}>Occlusion / CTO (complex)</option>
+          </select>
+        </div>
+      </div>
+      ${idx>0 ? `<label class="inline" style="text-transform:none; font-weight:500; color:var(--ink); display:flex; align-items:center; gap:6px; margin-top:8px;">
+        <input type="checkbox" data-field="bridgeWithPrevious" data-id="${v.id}" ${v.bridgeWithPrevious?'checked':''} style="width:14px;height:14px;">
+        Same continuous (bridging) lesion as the vessel above — merge into one code for the more distal vessel
+      </label>` : ''}
+      ${v.tpTrunkFlag ? `<div class="hint" style="color:var(--flag);">Detected "tibioperoneal trunk" — not separately billable. Confirm above whether this is Posterior tibial or Peroneal, and use the bridging checkbox if it's continuous with an adjacent vessel.</div>` : ''}
+      ${v.bypassGraftFlag ? `<div class="hint" style="color:var(--flag);">Detected a bypass graft — coded to the graft's distal outflow target territory regardless of where along the graft (proximal anastomosis, graft body, or distal anastomosis) the intervention occurred. Confirm Territory/Vessel above reflect the graft's named outflow target, and that this isn't actually a separate native-vessel lesion proximal to the graft's own origin (that would be a genuinely separate, separately billable territory).</div>` : ''}
+      ${!hasModality(v) ? `<div class="hint" style="color:var(--pending-ink); background:var(--pending-soft); padding:6px 9px; border-radius:3px; margin-top:6px;">⚠ No treatment box checked below — this vessel was mentioned (access site, wire path, or findings only) but won't generate a code. Check a box below if it actually WAS treated.</div>` : ''}
+      <label>Treatment</label>
+      <div class="modgrid">
+        <label class="inline"><input type="checkbox" data-field="angioplasty" data-id="${v.id}" ${v.angioplasty?'checked':''}> Plain balloon angioplasty</label>
+        <label class="inline"><input type="checkbox" data-field="dcb" data-id="${v.id}" ${v.dcb?'checked':''}> Drug-coated balloon</label>
+        <label class="inline"><input type="checkbox" data-field="atherectomy" data-id="${v.id}" ${v.atherectomy?'checked':''}> Atherectomy</label>
+        <label class="inline"><input type="checkbox" data-field="lithotripsy" data-id="${v.id}" ${v.lithotripsy?'checked':''}> Lithotripsy (IVL)</label>
+        <label class="inline"><input type="checkbox" data-field="stent" data-id="${v.id}" ${v.stent?'checked':''}> Stent</label>
+      </div>
+      <div class="row3 sizefield">
+        <div><label>Balloon/IVL size</label><input type="text" data-field="balloonSize" data-id="${v.id}" value="${v.balloonSize}" placeholder="e.g. 5mm"></div>
+        <div style="opacity:${v.stent?'1':'0.4'}; transition:opacity .15s;"><label>Stent type${v.stent?'':' (n/a — Stent not checked)'}</label>
+          <select data-field="stentType" data-id="${v.id}" ${v.stent?'':'disabled'}>
+            <option value="self-expanding" ${v.stentType==='self-expanding'?'selected':''}>Self-expanding</option>
+            <option value="balloon-expandable" ${v.stentType==='balloon-expandable'?'selected':''}>Balloon-expandable</option>
+            <option value="covered" ${v.stentType==='covered'?'selected':''}>Covered</option>
+          </select>
+        </div>
+        <div style="opacity:${v.stent?'1':'0.4'}; transition:opacity .15s;"><label>Stent size${v.stent?'':' (n/a — Stent not checked)'}</label><input type="text" data-field="stentSize" data-id="${v.id}" value="${v.stentSize}" placeholder="e.g. 6x150mm" ${v.stent?'':'disabled'}></div>
+      </div>
+      ${getSizeChips(v.territory, v.vessel).length ? `<div class="chiprow">${getSizeChips(v.territory, v.vessel).map(sz=>`<span class="chip" data-size-chip="${v.id}" data-size-value="${sz}">${sz}</span>`).join('')}</div>` : ''}      <label>Result</label>
+      <input type="text" data-field="result" data-id="${v.id}" value="${v.result}">
+    `;
+    wrap.appendChild(block);
+  });
+
+  wrap.querySelectorAll('[data-remove]').forEach(b=>b.addEventListener('click', ()=>removeVesselRow(b.dataset.remove)));
+  wrap.querySelectorAll('[data-size-chip]').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      const v = vesselRows.find(x=>x.id===chip.dataset.sizeChip);
+      if(v){ v.balloonSize = chip.dataset.sizeValue; renderVessels(); renderAll(); }
+    });
+  });
+  wrap.querySelectorAll('[data-field]').forEach(el=>{
+    const handler = ()=>{
+      const v = vesselRows.find(x=>x.id===el.dataset.id);
+      if(!v) return;
+      const field = el.dataset.field;
+      if(el.type==='checkbox') v[field] = el.checked;
+      else v[field] = el.value;
+      if(field==='lesion') v.lesionConfirmed = true;
+      if(field==='territory'){ v.vessel = TERRITORY_VESSELS[v.territory][0]; renderVessels(); }
+      if(['angioplasty','dcb','atherectomy','lithotripsy','stent'].includes(field)) renderVessels();
+      renderAll();
+    };
+    el.addEventListener('change', handler);
+    if(el.tagName==='INPUT' && el.type==='text') el.addEventListener('input', handler);
+  });
+}
+
+document.getElementById('addVesselBtn').addEventListener('click', ()=>addVesselRow());
+
+// ---------- Full-note parser ----------
+// Finds vessel mentions in order, merges by vessel name (so repeated mentions
+// of the same vessel across sentences become one segment), then analyzes
+// each merged segment for lesion type / modality / sizes.
+//
+// "Tibioperoneal trunk" is not itself a fold target — it isn't separately
+// billable and always needs to be attributed to whichever of posterior
+// tibial / peroneal it actually continues as. VESSEL_MAP tags it with this
+// sentinel instead of a real vessel name; segmentByVessel() below resolves
+// each occurrence by proximity to the nearest explicit mention of either
+// real vessel in the full treatment narrative (not hardcoded to either one),
+// before any clause merging happens.
+const TIBIOPERONEAL_TRUNK_SENTINEL = 'TIBIOPERONEAL_TRUNK_SENTINEL';
+
+const VESSEL_MAP = [
+  [/\bcommon femoral\b|\bcfa\b/, 'femoropopliteal', 'Common femoral/profunda femoris'],
+  [/profunda/, 'femoropopliteal', 'Common femoral/profunda femoris'],
+  [/\bsfa\b|superficial femoral|\bpopliteal\b/, 'femoropopliteal', 'SFA/popliteal'],
+  [/\bcommon iliac\b/, 'iliac', 'Common iliac'],
+  [/\bexternal iliac\b/, 'iliac', 'External iliac'],
+  [/\binternal iliac\b/, 'iliac', 'Internal iliac'],
+  [/tibioperoneal trunk|\btp trunk\b/, 'tibioperoneal', TIBIOPERONEAL_TRUNK_SENTINEL],
+  [/\banterior tibial\b/, 'tibioperoneal', 'Anterior tibial'],
+  [/\bposterior tibial\b/, 'tibioperoneal', 'Posterior tibial'],
+  [/\bperoneal\b/, 'tibioperoneal', 'Peroneal'],
+  [/dorsalis pedis/, 'inframalleolar', 'Dorsalis pedis'],
+  [/\bplantar\b/, 'inframalleolar', 'Plantar'],
+  // Fallback for casual/shorthand speech that names a territory without the
+  // specific vessel (e.g. "tibial angioplasty" instead of "posterior tibial").
+  // Lookbehind excludes cases already caught by the specific patterns above,
+  // so "anterior tibial" / "posterior tibial" don't double-match here too.
+  [/(?<!anterior )(?<!posterior )\btibial\b/, 'tibioperoneal', 'Tibial (unspecified — confirm AT/PT/peroneal)'],
+  [/(?<!common )(?<!external )(?<!internal )\biliac\b/, 'iliac', 'Iliac (unspecified — confirm segment)']
+];
+
+function findVesselMatchesIn(text){
+  const matches = [];
+  for(const [re, terr, name] of VESSEL_MAP){
+    const g = new RegExp(re.source, 'gi');
+    let m;
+    while((m = g.exec(text)) !== null){
+      matches.push({index: m.index, territory: terr, vessel: name});
+    }
+  }
+  matches.sort((a,b)=>a.index-b.index);
+  return matches;
+}
+
+// Resolves a single "tibioperoneal trunk" mention (at absoluteIndex within
+// fullText) to whichever real vessel — posterior tibial or peroneal — has
+// an EXPLICIT mention closest to it by character distance, searching in
+// both directions. This is what makes the fold target dynamic instead of a
+// hardcoded default: a trunk mentioned right next to "...for the peroneal
+// artery and the tibioperoneal trunk stenoses" resolves to Peroneal; one
+// mentioned alongside "posterior tibial artery is occluded at its origin
+// continuing as the tibioperoneal trunk" resolves to Posterior tibial.
+// Falls back to Posterior tibial (the prior hardcoded behavior) only when
+// neither vessel is named anywhere in the note — that fallback is always
+// surfaced via the existing tpTrunkFlag review prompt either way.
+function resolveTibioperonealTrunkVessel(fullText, absoluteIndex){
+  const low = fullText.toLowerCase();
+  const peronealRe = /\bperoneal\b/g;
+  const ptRe = /\bposterior tibial\b/g;
+  let bestVessel = null, bestDist = Infinity;
+  let m;
+  while((m = peronealRe.exec(low)) !== null){
+    const d = Math.abs(m.index - absoluteIndex);
+    if(d < bestDist){ bestDist = d; bestVessel = 'Peroneal'; }
+  }
+  while((m = ptRe.exec(low)) !== null){
+    const d = Math.abs(m.index - absoluteIndex);
+    if(d < bestDist){ bestDist = d; bestVessel = 'Posterior tibial'; }
+  }
+  return bestVessel || 'Posterior tibial';
+}
+
+// Splits the note into clauses (by sentence/comma/semicolon) so that a
+// descriptor can be attributed to its vessel whether it appears before
+// ("plasty of CTO of the popliteal artery") or after ("the popliteal
+// artery was treated with plasty") the vessel name within the same clause.
+// Clauses with no vessel mention of their own carry forward to whichever
+// vessel was most recently named (continuation sentences like "follow-up
+// imaging showed...").
+//
+// Tracks each clause's absolute offset within the original text (rather
+// than relying on String.split(), which discards position) so that any
+// tibioperoneal-trunk sentinel match can be resolved by proximity against
+// the FULL text — the nearest real vessel mention is often in an adjacent
+// clause, not the same one (e.g. "...for the peroneal artery and the
+// tibioperoneal trunk stenoses" splits into two clauses on "and").
+function segmentByVessel(text){
+  const rawPieces = text.split(/[,.;]\s+|\s+and\s+/i);
+  let cursor = 0;
+  const clauses = [];
+  rawPieces.forEach(raw=>{
+    const trimmed = raw.trim();
+    if(!trimmed) return;
+    const idx = text.indexOf(trimmed, cursor);
+    const start = idx >= 0 ? idx : cursor;
+    cursor = start + trimmed.length;
+    clauses.push({text: trimmed, start});
+  });
+
+  const order = [];
+  const byKey = {};
+  let lastKey = null;
+
+  clauses.forEach(piece=>{
+    let matches = findVesselMatchesIn(piece.text);
+    if(matches.length){
+      matches = matches.map(m=>{
+        if(m.vessel === TIBIOPERONEAL_TRUNK_SENTINEL){
+          const absoluteIndex = piece.start + m.index;
+          return Object.assign({}, m, {vessel: resolveTibioperonealTrunkVessel(text, absoluteIndex)});
+        }
+        return m;
+      });
+      // A bypass graft is named after BOTH endpoints ("popliteal to
+      // posterior tibial bypass graft", "femoral to anterior tibial bypass
+      // graft") — both vessel names match independently here, which would
+      // otherwise create two rows (and two codes) for what's actually one
+      // intervention. Coding maps the whole graft — proximal anastomosis,
+      // graft body, or distal anastomosis alike — to the DISTAL outflow
+      // target's territory only; the origin name is just naming the graft,
+      // not a separately treated vessel. The "X to Y" naming convention
+      // consistently puts the outflow target last, so when a clause
+      // mentions bypass/graft and matches 2+ distinct vessels, keep only
+      // the rightmost (last-matched) one and drop the rest. This only
+      // collapses matches within the SAME clause — a genuinely separate
+      // native-vessel lesion described in its own clause/sentence still
+      // produces its own row untouched, exactly as it should (native and
+      // graft interventions are real, separately billable territories).
+      const isGraftClause = /\bbypass\b|\bgraft\b/i.test(piece.text);
+      if(isGraftClause){
+        const distinctKeys = [...new Set(matches.map(m=>m.territory+'|'+m.vessel))];
+        if(distinctKeys.length > 1){
+          let last = matches[0];
+          matches.forEach(m=>{ if(m.index >= last.index) last = m; });
+          matches = matches.filter(m=> (m.territory+'|'+m.vessel) === (last.territory+'|'+last.vessel));
+        }
+      }
+      const seen = new Set();
+      matches.forEach(m=>{
+        const key = m.territory+'|'+m.vessel;
+        if(seen.has(key)) return; // avoid double-adding same vessel twice within one clause
+        seen.add(key);
+        if(!byKey[key]){ byKey[key] = {territory:m.territory, vessel:m.vessel, text:''}; order.push(key); }
+        byKey[key].text += ' ' + piece.text;
+      });
+      lastKey = matches[0].territory+'|'+matches[0].vessel;
+    } else if(lastKey){
+      byKey[lastKey].text += ' ' + piece.text;
+    }
+  });
+  return order.map(k=>byKey[k]);
+}
+
+function analyzeSegmentText(t){
+  const low = t.toLowerCase();
+  const out = {lesion:'straightforward', lesionConfirmed:false, angioplasty:false, dcb:false, stent:false,
+    atherectomy:false, lithotripsy:false, balloonSize:'', stentSize:'', stentType:'self-expanding',
+    result:'good result', bridgeWithPrevious:false, tpTrunkFlag:false};
+
+  if(/tibioperoneal trunk|\btp trunk\b/.test(low)) out.tpTrunkFlag = true;
+  // lesionConfirmed only flips true when the text actually says something —
+  // otherwise 'straightforward' is a silent, unflagged guess, which is the
+  // exact failure mode that needed fixing (e.g. "SFA stent" alone).
+  if(/non-?occl(uded)?\b|not occl(uded)?\b/i.test(low)){ out.lesion='straightforward'; out.lesionConfirmed=true; }
+  else if(/\bcto\b|total occlusion|\bocclusion\b|\boccluded\b|\boccl\b/i.test(low)){ out.lesion='complex'; out.lesionConfirmed=true; }
+  else if(/\bstenosis\b|\bstenotic\b/i.test(low)){ out.lesion='straightforward'; out.lesionConfirmed=true; }
+  // A documented percent narrowing ("80% SFA") is, by definition, a
+  // stenosis even when the word "stenosis" itself was never dictated —
+  // only occlusion is a separate, named finding (checked above, with
+  // priority), so a bare percentage with no occlusion language is an
+  // unambiguous straightforward-lesion confirmation, not a guess.
+  else if(/\d{1,3}\s?(?:%|\bpercent\b|\bpct\b\.?)/i.test(t)){ out.lesion='straightforward'; out.lesionConfirmed=true; }
+  // A mention of "stent" doesn't always mean one was placed this session —
+  // notes routinely reference a PRIOR stent just to describe wiring through
+  // it ("select the iliac stent...") or as background findings ("patent
+  // with 2 stents in place"). Treating that as a new placement would
+  // generate a phantom code for a device that was never actually deployed
+  // today.
+  const preExistingStentRef = /\bselect(?:ed|ing)?\s+the\s+(?:left\s+|right\s+)?[\w-]+\s+stent\b|\b\d+\s+stents?\s+in\s+place\b|\bknown\s+(?:to\s+have\s+)?(?:a\s+|an\s+)?stent\b|\bpreviously\s+placed\s+stent\b|\bexisting\s+stent\b/i;
+  if(/\bstents?\b|stenting/.test(low) && !preExistingStentRef.test(low)) out.stent=true;
+  if(/atherectomy|laser|orbital|rotational|directional/.test(low)) out.atherectomy=true;
+  if(/lithotripsy|shockwave|\bivl\b/.test(low)) out.lithotripsy=true;
+  if(/drug.coated|\bdcb\b/.test(low)) out.dcb=true;
+  // A stent's code already includes angioplasty for that vessel — don't
+  // auto-check both, since the checked boxes should reflect what's actually
+  // billed, not just every technique mentioned in the narrative (e.g.
+  // "balloon" inside "balloon-expandable stent" shouldn't trip this either).
+  // Stent and atherectomy codes both already include angioplasty for that
+  // vessel — either one suppresses the angioplasty checkbox. Lithotripsy
+  // (IVL) is different: it's an add-on only, with no base code of its own,
+  // so angioplasty stays checked as the real base modality when IVL is used
+  // alongside it (e.g. balloon angioplasty + IVL, both legitimately billed).
+  if(/angioplasty|\bplasty\b|\bpta\b|balloon/.test(low) && !out.dcb && !out.stent && !out.atherectomy) out.angioplasty=true;
+  if(/covered stent/.test(low)) out.stentType='covered';
+  else if(/balloon.expandable/.test(low)) out.stentType='balloon-expandable';
+
+  // Known stent brands override the generic guess — and mentioning one
+  // means a stent was placed even if the word "stent" itself got dropped
+  // in dictation. Type info is real (changes the dropdown); drug-eluting/
+  // bioresorbable/covered-construction detail isn't in the 3-option
+  // dropdown's vocabulary, so it goes into the size field as text instead.
+  let stentBrand = '';
+  if(/\besprit\b/.test(low)){ out.stentType='balloon-expandable'; out.stent=true; stentBrand='Esprit'; }
+  else if(/\bviabahn\b/.test(low)){ out.stentType='covered'; out.stent=true; stentBrand='Viabahn'; }
+  else if(/\bvbx\b/.test(low)){ out.stentType='covered'; out.stent=true; stentBrand='VBX'; }
+  // Unbranded "drug-eluting/drug-coated bioresorbable scaffold" language
+  // (e.g. dictated as "Abbott BTK scaffold" without the brand name "Esprit"
+  // itself) describes the same class of device as the branded check above —
+  // currently available BTK bioresorbable scaffolds are balloon-expandable
+  // by design, so this sets the same type even when the specific brand name
+  // wasn't dictated. Only fires when a stent/scaffold was actually detected
+  // (out.stent), and a named brand above always takes precedence.
+  else if(out.stent && /bioresorbable (vascular )?scaffold|drug.eluting.{0,15}scaffold|\bbvs\b/.test(low)){
+    out.stentType='balloon-expandable'; stentBrand='bioresorbable scaffold';
+  }
+
+  // sizes: collect all "Nmm" / "NxNmm" occurrences with their position
+  const sizeMatches = [...t.matchAll(/(\d+(\.\d+)?)\s?x?\s?(\d+(\.\d+)?)?\s?mm/gi)];
+  if(sizeMatches.length){
+    // a size mentioned within ~25 chars before/after "stent" is the stent size
+    let stentIdx = low.indexOf('stent');
+    let stentSize = '', otherSize = '';
+    sizeMatches.forEach(m=>{
+      const near = stentIdx>=0 && Math.abs(m.index - stentIdx) < 30;
+      if(near && !stentSize) stentSize = m[0].replace(/\s+/g,'');
+      else if(!otherSize) otherSize = m[0].replace(/\s+/g,'');
+    });
+    // Only fall back to "last size mentioned = stent size" when the text
+    // actually says "stent" somewhere — otherwise this wrongly grabbed an
+    // IVL/second-balloon size (e.g. "4mm balloon... 5mm IVL balloon", no
+    // stent at all) and stuffed it into Stent Size.
+    out.stentSize = stentSize || (stentIdx>=0 && sizeMatches.length>1 ? sizeMatches[sizeMatches.length-1][0].replace(/\s+/g,'') : '');
+    out.balloonSize = otherSize || (out.stentSize && sizeMatches.length===1 ? '' : sizeMatches[0][0].replace(/\s+/g,''));
+  }
+  if(stentBrand) out.stentSize = (out.stentSize ? out.stentSize + ' ' : '') + stentBrand;
+
+  // grab a short "result/findings" snippet if present
+  const resultMatch = t.match(/(good result|excellent result|no residual stenosis|brisk flow|widely patent|excellent angiographic result)[^.]*\./i);
+  if(resultMatch) out.result = resultMatch[0].trim();
+
+  return out;
+}
+
+function parseFullNote(text){
+  // Vessel PRESENCE and MODALITY come only from the treatment-narrative
+  // section — diagnostic-findings, indications, or procedure-list sentences
+  // mention vessels that were never touched (e.g. "concern for tibial
+  // stenosis" in Indications, or "CFA was punctured" as just an access
+  // site), and including those would wrongly generate codes for untreated
+  // vessels. Different templates label this section differently —
+  // "Intervention:" or "Procedure Description" are both recognized.
+  let treatmentText = text;
+  const headerRe = /intervention\s*:|procedure description\s*:?/gi;
+  let lastIdx = -1, hm;
+  while((hm = headerRe.exec(text)) !== null){ lastIdx = hm.index + hm[0].length; }
+  const findingsStartRe = /(angiographic findings|leg angiogram revealed|findings:)/i;
+  const fm = findingsStartRe.exec(text);
+  const findingsStart = (fm && lastIdx >= 0 && fm.index < lastIdx) ? fm.index : 0;
+  const findingsText = lastIdx >= 0 ? text.slice(findingsStart, lastIdx) : '';
+  if(lastIdx >= 0) treatmentText = text.slice(lastIdx);
+
+  const segments = segmentByVessel(treatmentText);
+  const rows = segments.map(s => {
+    const base = Object.assign({territory: s.territory, vessel: s.vessel}, analyzeSegmentText(s.text));
+    const lowSeg = s.text.toLowerCase();
+    // Coding maps a bypass graft intervention to its DISTAL outflow target's
+    // territory regardless of where along the graft the balloon/stent
+    // actually sits — proximal anastomosis, graft body, or distal
+    // anastomosis all code the same way. The vessel-name match above
+    // already resolves to that outflow target by default (segmentByVessel's
+    // graft-clause handling also collapses a same-clause origin+destination
+    // naming like "popliteal to posterior tibial graft" down to just the
+    // destination). So no re-territory override is needed or correct here
+    // — a genuinely separate NATIVE-vessel lesion (e.g. proximal to the
+    // graft's own origin) is a different intervention entirely and is
+    // already captured as its own row because it appears in its own
+    // clause/sentence with its own vessel match, not through this flag.
+    if(/\bbypass\b|\bgraft\b/.test(lowSeg)){
+      base.bypassGraftFlag = true;
+    }
+    return base;
+  });
+
+
+  // Lesion COMPLEXITY is cross-checked against the findings section, if one
+  // exists: dictations often state "occluded"/"CTO" only once, in the
+  // findings paragraph, then just say "the lesion was treated with..." in
+  // the intervention narrative without repeating it — and the findings
+  // section's shorter, period-delimited sentences are far less prone to the
+  // "and"-joined ambiguity that compound intervention sentences have (e.g.
+  // "...for the peroneal artery and the tibioperoneal trunk stenoses").
+  if(findingsText){
+    const findingsSegments = segmentByVessel(findingsText);
+    const findingsByKey = {};
+    findingsSegments.forEach(s => { findingsByKey[s.territory+'|'+s.vessel] = analyzeSegmentText(s.text); });
+    rows.forEach(r=>{
+      const fr = findingsByKey[r.territory+'|'+r.vessel];
+      if(fr){ r.lesion = fr.lesion; if(fr.lesionConfirmed) r.lesionConfirmed = true; }
+    });
+  }
+
+  // Bridging default: only when there's no sign the prior vessel was already
+  // brought to a separate, successful conclusion first. "Good result" /
+  // "attention was then turned to" before the next vessel mention signals
+  // two sequential lesions, not one continuous bridging occlusion.
+  for(let i=1;i<rows.length;i++){
+    if(rows[i].tpTrunkFlag && rows[i].lesion==='complex'
+       && TERRITORY_RANK[rows[i-1].territory] < TERRITORY_RANK[rows[i].territory]
+       && rows[i-1].lesion==='complex'){
+      const hasTransition = /good result|excellent result|successful result|widely patent|attention (was|then)/i.test(treatmentText);
+      if(!hasTransition) rows[i].bridgeWithPrevious = true;
+    }
+  }
+  // A vessel mentioned only as an access site, wire trajectory, or findings
+  // aside — with no actual treatment language anywhere near it — never had
+  // an intervention performed. Drop it here rather than creating a card and
+  // suppressing it later; "+ Add vessel manually" remains the recovery path
+  // if a real treatment ever gets missed due to unusual phrasing.
+  return rows.filter(hasModality);
+}
+
+// Case-level items that block their code until explicitly resolved when the
+// note doesn't mention them at all (can't tell "wasn't done" from "wasn't
+// said" otherwise). Reset on every fresh Analyze of a new note.
+let caseAnswers = {aortogram: null, sedationAnswered: false, sedationMinutes: 0, usGuidance: null};
+
+document.getElementById('analyzeBtn').addEventListener('click', ()=>{
+  const text = document.getElementById('noteInput').value.trim();
+  const resultEl = document.getElementById('parseResult');
+  if(!text){ resultEl.textContent = 'Paste a note first.'; return; }
+
+  caseAnswers = {aortogram: null, sedationAnswered: false, sedationMinutes: 0, usGuidance: null};
+
+  const parsed = parseFullNote(text);
+  if(!parsed.length){
+    resultEl.textContent = 'No recognizable vessels found — add manually below.';
+    renderAll();
+    return;
+  }
+  vesselRows = [];
+  parsed.forEach(p=>addVesselRow(p, true));
+  resultEl.textContent = `Found ${parsed.length} vessel(s) — review/correct below, especially any bridging-lesion or TP-trunk flags, before trusting the codes.`;
+  renderVessels();
+  renderAll();
+});
+
+document.getElementById('noteInput').addEventListener('input', renderAll);
+
+// Select all existing text on focus (not on every click — only when the box
+// transitions from unfocused to focused) so starting a new patient is just
+// "click, then paste or dictate" instead of manually clearing first. Doesn't
+// interfere with repositioning the cursor while already editing, since that
+// doesn't re-fire 'focus'.
+document.getElementById('noteInput').addEventListener('focus', function(){ this.select(); });
+
+document.getElementById('newPatientBtn').addEventListener('click', ()=>{
+  if(window.stopDictationIfActive) window.stopDictationIfActive();
+  const noteInputEl = document.getElementById('noteInput');
+  noteInputEl.value = '';
+  vesselRows = [];
+  caseAnswers = {aortogram: null, sedationAnswered: false, sedationMinutes: 0, usGuidance: null};
+  document.getElementById('parseResult').textContent = '';
+  renderVessels();
+  renderAll();
+  noteInputEl.focus();
+});
+
+// ---------- Voice dictation (Web Speech API) ----------
+// Freeform: talk naturally, same as dictating into Epic. Transcribed text
+// lands in the same textarea as typing/pasting, so everything downstream
+// (Analyze button, parser) works identically regardless of input method.
+// Note: this uses the browser's built-in cloud speech recognition (Chrome/
+// Edge), not on-device transcription — audio leaves the browser to be
+// transcribed, unlike the rest of this tool's logic.
+//
+// Reusable so the op note generator's Findings/Intervention boxes can use
+// the exact same dictation behavior as the coding analyzer's note box,
+// rather than a separate implementation. Returns a stop() function the
+// caller can use to cut off an active session (e.g. when switching tabs or
+// re-rendering the textarea away).
+function attachDictation(textareaId, buttonId, statusId, onUpdate){
+  const dictateBtn = document.getElementById(buttonId);
+  const dictateStatus = document.getElementById(statusId);
+  const textareaEl = document.getElementById(textareaId);
+  const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if(!dictateBtn || !textareaEl) return function(){};
+
+  if(!SpeechRecognitionImpl){
+    dictateBtn.disabled = true;
+    dictateBtn.title = 'Voice dictation not supported in this browser';
+    if(dictateStatus) dictateStatus.textContent = 'Not supported in this browser — try Chrome or Edge, or just type/paste above.';
+    return function(){};
+  }
+
+  const recognition = new SpeechRecognitionImpl();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = 'en-US';
+
+  let isListening = false;     // user-intent toggle (mic button state)
+  let baseText = '';           // textarea contents at the moment listening started
+  let finalTranscript = '';    // accumulated finalized speech this session
+
+  recognition.onresult = (event)=>{
+    let interim = '';
+    for(let i = event.resultIndex; i < event.results.length; i++){
+      const transcript = event.results[i][0].transcript;
+      if(event.results[i].isFinal) finalTranscript += transcript + ' ';
+      else interim += transcript;
+    }
+    textareaEl.value = baseText + finalTranscript + interim;
+    if(onUpdate) onUpdate();
+  };
+
+  recognition.onerror = (event)=>{
+    if(event.error === 'no-speech') return; // benign, recognition continues
+    isListening = false;
+    dictateBtn.textContent = '🎤 Dictate';
+    dictateBtn.classList.remove('listening');
+    if(!dictateStatus) return;
+    if(event.error === 'not-allowed' || event.error === 'service-not-allowed'){
+      dictateStatus.textContent = 'Microphone access denied — check browser permissions and try again.';
+    } else {
+      dictateStatus.textContent = `Mic error (${event.error}) — tap Dictate to retry.`;
+    }
+  };
+
+  recognition.onend = ()=>{
+    // Chrome periodically ends the session on its own (e.g. after a pause).
+    // If the user hasn't tapped "stop", restart seamlessly so it behaves
+    // like continuous dictation rather than stopping after every silence.
+    if(isListening){
+      try{ recognition.start(); } catch(e){ /* ignore rapid restart errors */ }
+    }
+  };
+
+  function stopDictation(){
+    isListening = false;
+    dictateBtn.textContent = '🎤 Dictate';
+    dictateBtn.classList.remove('listening');
+    if(dictateStatus) dictateStatus.textContent = '';
+    try{ recognition.stop(); }catch(e){}
+  }
+
+  dictateBtn.addEventListener('click', ()=>{
+    if(isListening){
+      stopDictation();
+    } else {
+      baseText = textareaEl.value;
+      if(baseText && !/\s$/.test(baseText)) baseText += ' ';
+      finalTranscript = '';
+      isListening = true;
+      dictateBtn.textContent = '⏹ Stop';
+      dictateBtn.classList.add('listening');
+      if(dictateStatus) dictateStatus.textContent = 'Listening — talk naturally, like dictating the note.';
+      try{ recognition.start(); }catch(e){ /* already running */ }
+    }
+  });
+
+  return function(){ if(isListening) stopDictation(); };
+}
+
+window.stopDictationIfActive = attachDictation('noteInput', 'dictateBtn', 'dictateStatus');
+
+// Parses a clock-time token like "1432", "14:32", or "2:32 pm" into minutes
+// since midnight. Returns null if it doesn't look like a valid time.
+function parseTimeToken(str, ampm){
+  let h, m;
+  const colonMatch = str.match(/^(\d{1,2}):(\d{2})$/);
+  if(colonMatch){ h = parseInt(colonMatch[1],10); m = parseInt(colonMatch[2],10); }
+  else {
+    const digits = str.replace(/\D/g,'');
+    if(digits.length === 3){ h = parseInt(digits.slice(0,1),10); m = parseInt(digits.slice(1),10); }
+    else if(digits.length === 4){ h = parseInt(digits.slice(0,2),10); m = parseInt(digits.slice(2),10); }
+    else return null;
+  }
+  if(ampm){
+    const ap = ampm.toLowerCase();
+    if(ap==='pm' && h<12) h += 12;
+    if(ap==='am' && h===12) h = 0;
+  }
+  if(h>23 || m>59 || h<0 || m<0) return null;
+  return h*60+m;
+}
+
+// Looks for a sedation start/end time pair (the way a nurse actually
+// documents it — "1432" and "1505", not a precomputed duration) within a
+// window of text around the word "sedation". Tries an explicit
+// start-keyword...end-keyword pattern first (most reliable), then a looser
+// "X to Y" connector pattern — but the loose pattern requires an extra
+// time-like signal (colon, am/pm, or the word "time" nearby) so it doesn't
+// mistake an unrelated number pair (e.g. "100 to 200 mL contrast") for a
+// clock range.
+function extractSedationTimeRange(windowText){
+  const TIME = '(\\d{1,2}:\\d{2}|\\d{3,4})\\s?(am|pm)?';
+  const labeledRe = new RegExp('start(?:ed)?\\s*(?:time)?\\s*(?:at)?\\s*:?\\s*'+TIME+'[\\s\\S]{0,40}?(?:end(?:ed)?|stop(?:ped)?|finish(?:ed)?)\\s*(?:time)?\\s*(?:at)?\\s*:?\\s*'+TIME, 'i');
+  let m = windowText.match(labeledRe);
+  let strict = true;
+  if(!m){
+    const rangeRe = new RegExp(TIME+'\\s*(?:to|until|through|-|–)\\s*'+TIME, 'i');
+    m = windowText.match(rangeRe);
+    strict = false;
+  }
+  if(!m) return null;
+  if(!strict){
+    // The loose "X to Y" connector (no start/end keywords) needs a guard
+    // against unrelated number pairs near "sedation" — e.g. contrast volume
+    // ("100 to 200 mL"). Check what immediately follows the second number:
+    // a unit word means it wasn't a time at all.
+    const afterEnd = windowText.slice(m.index + m[0].length, m.index + m[0].length + 15);
+    if(/^\s*(ml|cc|mg|mcg|units?|french|fr)\b/i.test(afterEnd)) return null;
+  }
+  const start = parseTimeToken(m[1], m[2]);
+  const end = parseTimeToken(m[3], m[4]);
+  if(start===null || end===null) return null;
+  let diff = end - start;
+  if(diff < 0) diff += 24*60; // overnight wraparound (rare, but handled)
+  if(diff <= 0 || diff > 600) return null; // sanity bound: ignore >10hr "ranges"
+  return diff;
+}
+
+function extractSedationMinutes(text){
+  // Casual phrasing varies in order ("68 min sedation" vs "sedation of 68
+  // minutes") and abbreviation ("min"/"mins"/"minutes"). Find every N-minutes
+  // mention and the word "sedation", then pick whichever minutes-mention sits
+  // closest to "sedation" in the text rather than requiring a fixed phrase.
+  const low = text.toLowerCase();
+  const sedIdx = low.search(/sedat(ion|ed|e)\b/); // catches "sedation"/"sedated"/"sedate"
+  if(sedIdx < 0) return null;
+
+  // Start/end clock times (how it's actually documented) take priority over
+  // a literal duration statement, since that's the ground-truth source.
+  const windowText = text.slice(Math.max(0, sedIdx-100), Math.min(text.length, sedIdx+150));
+  const rangeResult = extractSedationTimeRange(windowText);
+  if(rangeResult !== null) return rangeResult;
+
+  const matches = [...text.matchAll(/(\d+)\s*-?\s*min(?:ute)?s?\b/gi)];
+  if(!matches.length) return null;
+  let best = matches[0], bestDist = Math.abs(matches[0].index - sedIdx);
+  matches.forEach(m=>{
+    const d = Math.abs(m.index - sedIdx);
+    if(d < bestDist){ best = m; bestDist = d; }
+  });
+  return parseInt(best[1], 10);
+}
+
+// "Intraservice time of greater than 15 minutes" gets the same 15 pulled
+// out by the matching above as a literal "15 minutes" would — but it isn't
+// the same thing: the actual time could be 16, could be 30. Below 23 min
+// that ambiguity doesn't change billing (still 99152 only), but at or above
+// it it would add a +99153 unit that a bare "15" silently misses. This
+// doesn't change what extractSedationMinutes() returns (the number is still
+// the best available anchor), it just flags that the number is a floor, not
+// an exact figure, so the caller can surface that instead of stating it as
+// fact.
+function sedationTimeIsApproximate(text){
+  const low = text.toLowerCase();
+  const sedIdx = low.search(/sedat(ion|ed|e)\b/);
+  if(sedIdx < 0) return false;
+  const matches = [...text.matchAll(/(\d+)\s*-?\s*min(?:ute)?s?\b/gi)];
+  if(!matches.length) return false;
+  let best = matches[0], bestDist = Math.abs(matches[0].index - sedIdx);
+  matches.forEach(m=>{
+    const d = Math.abs(m.index - sedIdx);
+    if(d < bestDist){ best = m; bestDist = d; }
+  });
+  const before = text.slice(Math.max(0, best.index-25), best.index);
+  return /\b(greater than|more than|at least|over|approximately|about|up to|>)\s*$/i.test(before);
+}
+
+// ---------- Modality + code logic ----------
+const TERRITORY_RANK = {iliac:1, femoropopliteal:2, tibioperoneal:3, inframalleolar:4};
+const MODALITY_RANK = {angioplasty:1, stent:2, atherectomy:3, stentAtherectomy:4};
+
+function modalityKey(v){
+  if(v.stent && v.atherectomy) return 'stentAtherectomy';
+  if(v.atherectomy) return 'atherectomy';
+  if(v.stent) return 'stent';
+  return 'angioplasty'; // covers plain PTA and DCB — both reported as angioplasty per CPT
+}
+
+// Merge any vessel marked "bridgeWithPrevious" into the prior row: per CPT,
+// a single lesion that bridges into another vessel/territory is coded once,
+// for the more distal vessel — not as two separate territory codes.
+function mergeBridgingVessels(rows){
+  const merged = [];
+  rows.forEach(v=>{
+    if(v.bridgeWithPrevious && merged.length){
+      const prev = merged[merged.length-1];
+      const prevDist = TERRITORY_RANK[prev.territory], curDist = TERRITORY_RANK[v.territory];
+      const winner = curDist >= prevDist ? v : prev; // more distal vessel's territory/vessel wins
+      const prevMod = modalityKey(prev), curMod = modalityKey(v);
+      const useCur = MODALITY_RANK[curMod] >= MODALITY_RANK[prevMod];
+      const mergedLesion = (prev.lesion==='complex' || v.lesion==='complex') ? 'complex' : 'straightforward';
+      // Confirmed only if the side that actually drives this result was
+      // itself explicit — an unstated default on one side shouldn't borrow
+      // confirmation from the other side's unrelated answer.
+      const mergedConfirmed = mergedLesion==='complex'
+        ? (prev.lesion==='complex' && prev.lesionConfirmed) || (v.lesion==='complex' && v.lesionConfirmed)
+        : (prev.lesionConfirmed && v.lesionConfirmed);
+      merged[merged.length-1] = Object.assign({}, useCur ? v : prev, {
+        territory: winner.territory,
+        vessel: `${prev.vessel} → ${v.vessel} (bridging lesion)`,
+        lesion: mergedLesion,
+        lesionConfirmed: mergedConfirmed,
+        lithotripsy: prev.lithotripsy || v.lithotripsy,
+        tpTrunkFlag: prev.tpTrunkFlag || v.tpTrunkFlag
+      });
+    } else {
+      merged.push(v);
+    }
+  });
+  return merged;
+}
+
+function hasModality(v){
+  return !!(v.angioplasty || v.dcb || v.stent || v.atherectomy || v.lithotripsy);
+}
+
+// Shared territory/modality/lesion -> CPT lookup, used by both the tab-1
+// coding analyzer (vesselRows, single global per-territory count) and the
+// op-note generator (per-side, per-territory counts — see ngSuggestCodes
+// below). countIndex is 0 for the initial vessel in that territory's
+// counting pool, 1+ for additional vessels.
+function lookupTerritoryCode(territory, modKey, complexity, countIndex){
+  const terr = CODE_TABLE[territory];
+  if(!terr) return {status:'invalid-territory'};
+  const modEntry = terr.modalities[modKey];
+  if(!modEntry) return {status:'invalid-modality', terr};
+  const pair = modEntry[complexity];
+  if(countIndex === 0) return {status:'ok', code: pair[0], isAdditional:false, terr};
+  if(countIndex <= terr.maxAdditional) return {status:'ok', code: '+'+pair[1], isAdditional:true, terr};
+  return {status:'over-max', terr};
+}
+
+// Dictation commonly states a negated/historical construction when a prior
+// study makes today's repeat unnecessary — e.g. "Previous aortogram was
+// performed so no aortogram was performed today" or "aortogram was not
+// performed." A bare keyword match (the old behavior) still fires on text
+// like that, since the word "aortogram" genuinely appears — generating a
+// code for a study the note itself says wasn't done today. This checks for
+// that negation construction and suppresses the match accordingly. A
+// separate, explicit "performed today" re-statement overrides the negation
+// back on, for the rarer case where both a negated historical reference and
+// a genuine today's-study mention appear in the same note.
+function isStudyNegatedToday(text, labelPattern){
+  const label = `(?:${labelPattern})`;
+  const negatedRe = new RegExp(`\\bno\\s+${label}\\s+(?:was|were)\\s+performed\\b|${label}\\b[^.]{0,25}\\bwas\\s+not\\s+performed\\b|\\bno\\s+${label}\\b[^.]{0,15}\\btoday\\b`, 'i');
+  const affirmedTodayRe = new RegExp(`\\b(?:an?|the)\\s+${label}\\b[^.]{0,25}\\bwas\\s+(?:then\\s+)?performed\\s+today\\b|\\btoday\\b[^.]{0,25}${label}\\b[^.]{0,25}\\bwas\\s+performed\\b`, 'i');
+  if(!negatedRe.test(text)) return false;
+  return !affirmedTodayRe.test(text);
+}
+
+// Single source of truth for aortogram/leg-angiogram auto-detection, used
+// by both suggestCodes() (code generation) and renderPending() (the "needs
+// your input" prompt) so the two can't drift out of sync with each other.
+function detectAortogramSignals(noteText){
+  const noteLow = noteText.toLowerCase();
+  const aortogramRaw = /aortogram|aortography/.test(noteLow);
+  const bilateralRaw = /bilateral (leg|lower extremity)|both legs/.test(noteLow);
+  const unilateralRaw = /\b(right|left) leg angiogram\b|\bleg angiogram\b|\blower extremity angiogram\b|\bangiogram\b[^.]{0,40}\blower extremity\b|\blower extremity\b[^.]{0,40}\bangiogram\b/i.test(noteLow);
+  const aortogramNegated = aortogramRaw && isStudyNegatedToday(noteText, 'aortogram|aortography');
+  const legNegated = (bilateralRaw || unilateralRaw) && isStudyNegatedToday(noteText, 'leg angiogram|lower extremity angiogram');
+  const aortogramMentioned = aortogramRaw && !aortogramNegated;
+  const bilateralLeg = bilateralRaw && !legNegated;
+  const unilateralLeg = unilateralRaw && !legNegated;
+  return {aortogramMentioned, bilateralLeg, unilateralLeg, anyAutoDetected: aortogramMentioned || bilateralLeg || unilateralLeg};
+}
+
+function suggestCodes(){
+  const codes = [];
+  const flags = [];
+  const territoryCount = {};
+  const rows = mergeBridgingVessels(vesselRows);
+
+  rows.forEach(v=>{
+    const terr = CODE_TABLE[v.territory];
+
+    // A vessel can get mentioned without ever being treated — access site
+    // ("CFA was punctured"), wire trajectory ("courses down the SFA"), or a
+    // findings-only aside ("plantar arteries are calcified, small but
+    // patent"). Without this guard, modalityKey() silently falls back to
+    // 'angioplasty' for ANY vessel mention, which would generate a real
+    // code for something that was never actually done. Exclude entirely
+    // instead, and don't let it consume an initial/additional vessel slot.
+    if(!hasModality(v)){
+      flags.push(`"${v.vessel}" (${terr.label}) was mentioned but no treatment modality (angioplasty/stent/atherectomy/IVL) was detected nearby — likely an access site, wire trajectory, or findings-only mention. Excluded from coding. If this vessel actually WAS treated, check the modality box(es) on its card.`);
+      return;
+    }
+
+    const modKey = modalityKey(v);
+    const complexity = v.lesion;
+    const count = territoryCount[v.territory] || 0;
+    territoryCount[v.territory] = count+1; // count regardless of confirmation, so later confirmed vessels in the same territory still get the right initial/additional slot
+
+    const lookup = lookupTerritoryCode(v.territory, modKey, complexity, count);
+    if(lookup.status === 'invalid-modality'){
+      flags.push(`${terr.label}: "${modKey}" isn't a valid modality in this territory (e.g. inframalleolar is angioplasty-only) — verify ${v.vessel} manually.`);
+      return;
+    }
+
+    if(!v.lesionConfirmed){
+      flags.push(`⏳ "${v.vessel}" (${terr.label}) — stenosis vs. occlusion/CTO wasn't stated, so this code is held back. Answer it above in "Needs your input" to generate it.`);
+      return;
+    }
+
+    if(lookup.status === 'ok'){
+      codes.push({code: lookup.code, desc: `${terr.label} — ${modKey} (${complexity==='complex'?'occlusion':'stenosis'}), ${lookup.isAdditional?'additional':'initial'} vessel — ${v.vessel}`});
+    } else if(lookup.status === 'over-max'){
+      flags.push(`${terr.label}: exceeds max billable additional vessels (${terr.maxAdditional}) — review ${v.vessel} before submitting.`);
+    }
+
+    if(v.lithotripsy){
+      if(terr.ivl){
+        codes.push({code:'+'+terr.ivl.code, desc:`${terr.label} — intravascular lithotripsy add-on — ${v.vessel} (reportable up to ${terr.ivl.maxPerLeg}x/leg in this territory)`});
+      } else {
+        flags.push(`${terr.label} has no IVL add-on code — lithotripsy performed in ${v.vessel} is not separately billable here, verify.`);
+      }
+    }
+    if(modKey==='atherectomy' && v.territory==='iliac'){
+      flags.push(terr.atherNote);
+    }
+    if(v.tpTrunkFlag){
+      flags.push(`"${v.vessel}" includes a tibioperoneal trunk mention — confirm this was correctly folded into posterior tibial or peroneal (trunk isn't separately billable) and that the territory/vessel above is right.`);
+    }
+    if(v.bypassGraftFlag){
+      flags.push(`"${v.vessel}" (${terr.label}) — bypass graft intervention detected. Coded to the graft's distal outflow target territory regardless of where along the graft (proximal anastomosis, graft body, or distal anastomosis) the balloon/stent actually sat. Verify Territory/Vessel above reflect the graft's named outflow target, and that this isn't actually a separate native-vessel lesion proximal to the graft's own origin (that's a genuinely separate, separately billable territory) before submitting.`);
+    }
+    if(/\(unspecified/i.test(v.vessel)){
+      flags.push(`"${v.vessel}" — exact vessel wasn't named in the input, so this was coded as ONE initial vessel only. If more than one distinct ${terr.label.toLowerCase()} vessel was actually treated, add an additional-vessel row and confirm exact vessel names before submitting.`);
+    }
+  });
+
+  // ---- Case-level codes: ultrasound guidance — auto-detect, else require an explicit answer ----
+  const noteText = (document.getElementById('noteInput').value || '');
+  const noteLow = noteText.toLowerCase();
+  const usGuidanceMentioned = /ultrasound[\s-]?(guid|guided)/i.test(noteLow);
+  let usGuidanceResolved = null;
+  if(usGuidanceMentioned){
+    usGuidanceResolved = true;
+  } else if(caseAnswers.usGuidance !== null){
+    usGuidanceResolved = caseAnswers.usGuidance;
+  }
+  if(usGuidanceResolved === true){
+    codes.push({code:'76937', desc:'Ultrasound guidance for vascular access — requires documented vessel patency, real-time needle-entry visualization, and a saved permanent image.'});
+  } else if(usGuidanceResolved === null && rows.length>0){
+    flags.push('⏳ Ultrasound-guided access not mentioned in the note — answer "Ultrasound guidance for access?" above in "Needs your input" to generate this code (or confirm none was used).');
+  }
+
+  // ---- Sedation: auto-detect from text, else require an explicit answer ----
+  let sedMin = extractSedationMinutes(noteText);
+  let sedApprox = false;
+  if(sedMin === null && caseAnswers.sedationAnswered){
+    sedMin = caseAnswers.sedationMinutes; // 0 means "no sedation" was explicitly answered
+  } else if(sedMin !== null){
+    sedApprox = sedationTimeIsApproximate(noteText);
+  }
+  if(sedMin === null){
+    if(rows.length>0) flags.push('⏳ Sedation not mentioned in the note — answer "Sedation given?" above in "Needs your input" to generate this code (or confirm none was given).');
+  } else if(sedMin > 0){
+    if(sedMin < 10){
+      flags.push(`Sedation time documented as ${sedMin} min — below the 10-minute minimum to report 99152 at all.`);
+    } else {
+      codes.push({code:'99152', desc:`Moderate sedation, same physician, initial 15 minutes (intraservice time ${sedMin} min${sedApprox ? ', documented as approximate' : ''})`});
+      let remaining = sedMin - 15, units = 0;
+      while(remaining >= 8){ units++; remaining -= 15; }
+      if(units>0) codes.push({code:`+99153 x${units}`, desc:`Moderate sedation, each additional 15 minutes (${units} unit${units>1?'s':''}). Note: in the hospital outpatient/facility setting, 99153 is typically technical-only — appropriate on the facility side.`});
+      if(sedApprox) flags.push(`Sedation time was documented with approximate language (e.g. "greater than"/"about") near ${sedMin} min, not stated exactly — confirm the actual intraservice time before submitting, since crossing certain thresholds changes whether an additional +99153 unit applies.`);
+    }
+  }
+
+  // ---- Diagnostic aortogram / extremity angiogram: auto-detect, else require an explicit answer ----
+  const {aortogramMentioned, bilateralLeg, unilateralLeg, anyAutoDetected} = detectAortogramSignals(noteText);
+
+  let resolvedAorto = null; // {aortogram, bilateral, unilateral} once known one way or another
+  if(anyAutoDetected){
+    resolvedAorto = {aortogram: aortogramMentioned, bilateral: bilateralLeg, unilateral: unilateralLeg};
+  } else if(caseAnswers.aortogram !== null){
+    const ans = caseAnswers.aortogram;
+    resolvedAorto = {aortogram: ans==='aortogram' || ans==='both', bilateral: ans==='bilateral', unilateral: ans==='unilateral'};
+  }
+
+  if(resolvedAorto){
+    if(resolvedAorto.aortogram){
+      codes.push({code:'75625-26', desc:'Aortography, abdominal, by catheter, RS&I — confirm the aortogram independently characterized findings (not just confirmatory imaging) before submitting.'});
+    }
+    if(resolvedAorto.bilateral){
+      codes.push({code:'75716-26-XU', desc:'Angiography, extremity, bilateral, RS&I — confirm the leg angiogram findings independently drove the treatment decision (not just intraprocedural roadmapping) before submitting.'});
+    } else if(resolvedAorto.unilateral){
+      codes.push({code:'75710-26-XU', desc:'Angiography, extremity, unilateral, RS&I — confirm the leg angiogram findings independently drove the treatment decision (not just intraprocedural roadmapping) before submitting.'});
+    }
+  } else if(rows.length>0){
+    flags.push('⏳ Aortogram/leg angiogram not mentioned in the note — answer above in "Needs your input" to generate this code (or confirm none was done).');
+  }
+
+  if(vesselRows.length===0){
+    flags.push('No vessels identified yet — paste a note and analyze, or add a vessel manually.');
+  }
+
+  return {codes, flags};
+}
+
+function renderPending(){
+  const card = document.getElementById('pendingCard');
+  const list = document.getElementById('pendingList');
+  if(vesselRows.length === 0){
+    card.style.display = 'none';
+    list.innerHTML = '';
+    return;
+  }
+  const items = [];
+
+  vesselRows.forEach(v=>{
+    if(!v.lesionConfirmed && hasModality(v)){
+      const terr = CODE_TABLE[v.territory];
+      items.push(`
+        <div class="pending-item">
+          <div class="ptext"><b>${terr.label} — ${v.vessel}:</b> stenosis or occlusion/CTO?</div>
+          <button data-confirm-lesion="${v.id}" data-value="straightforward">Stenosis</button>
+          <button data-confirm-lesion="${v.id}" data-value="complex">Occlusion/CTO</button>
+        </div>
+      `);
+    }
+  });
+
+  const noteText = (document.getElementById('noteInput').value || '');
+  const noteLow = noteText.toLowerCase();
+  const {aortogramMentioned, bilateralLeg, unilateralLeg} = detectAortogramSignals(noteText);
+  if(!aortogramMentioned && !bilateralLeg && !unilateralLeg && caseAnswers.aortogram===null){
+    items.push(`
+      <div class="pending-item">
+        <div class="ptext"><b>Aortogram / leg angiogram performed?</b></div>
+        <button data-confirm-case="aortogram" data-value="none">None</button>
+        <button data-confirm-case="aortogram" data-value="aortogram">Aortogram</button>
+        <button data-confirm-case="aortogram" data-value="unilateral">Leg (unilateral)</button>
+        <button data-confirm-case="aortogram" data-value="bilateral">Leg (bilateral)</button>
+        <button data-confirm-case="aortogram" data-value="both">Both</button>
+      </div>
+    `);
+  }
+
+  const usGuidanceMentioned = /ultrasound[\s-]?(guid|guided)/i.test(noteLow);
+  if(!usGuidanceMentioned && caseAnswers.usGuidance===null){
+    items.push(`
+      <div class="pending-item">
+        <div class="ptext"><b>Ultrasound guidance for access?</b> (patency + real-time needle entry + saved image)</div>
+        <button data-confirm-case="usGuidance" data-value="yes">Yes, documented</button>
+        <button data-confirm-case="usGuidance" data-value="no">No</button>
+      </div>
+    `);
+  }
+
+  const sedationMentioned = /sedation/.test(noteLow);
+  if(!sedationMentioned && !caseAnswers.sedationAnswered){
+    items.push(`
+      <div class="pending-item" style="flex-direction:column; align-items:stretch;">
+        <div class="ptext"><b>Sedation given?</b></div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+          <span style="font-size:11.5px;">Start</span><input type="time" id="sedStartInput">
+          <span style="font-size:11.5px;">End</span><input type="time" id="sedEndInput">
+          <button id="confirmSedTimesBtn" type="button">Calculate &amp; confirm</button>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+          <span style="font-size:11.5px;">or minutes directly</span>
+          <input type="number" id="sedMinInput" min="0" placeholder="minutes">
+          <button id="confirmSedMinBtn" type="button">Confirm minutes</button>
+          <button data-confirm-case="sedation-none" data-value="none">No sedation</button>
+        </div>
+      </div>
+    `);
+  }
+
+  if(!items.length){
+    card.style.display = 'none';
+    list.innerHTML = '';
+    return;
+  }
+  card.style.display = '';
+  list.innerHTML = items.join('');
+
+  list.querySelectorAll('[data-confirm-lesion]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const v = vesselRows.find(x=>x.id===b.dataset.confirmLesion);
+      if(v){ v.lesion = b.dataset.value; v.lesionConfirmed = true; renderVessels(); renderAll(); }
+    });
+  });
+  list.querySelectorAll('[data-confirm-case]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      if(b.dataset.confirmCase === 'sedation-none'){
+        caseAnswers.sedationAnswered = true;
+        caseAnswers.sedationMinutes = 0;
+      } else if(b.dataset.confirmCase === 'usGuidance'){
+        caseAnswers.usGuidance = (b.dataset.value === 'yes');
+      } else {
+        caseAnswers.aortogram = b.dataset.value;
+      }
+      renderAll();
+    });
+  });
+  const sedBtn = document.getElementById('confirmSedMinBtn');
+  if(sedBtn){
+    sedBtn.addEventListener('click', ()=>{
+      const val = parseInt(document.getElementById('sedMinInput').value, 10);
+      if(!isNaN(val) && val>=0){
+        caseAnswers.sedationAnswered = true;
+        caseAnswers.sedationMinutes = val;
+        renderAll();
+      }
+    });
+  }
+  const sedTimesBtn = document.getElementById('confirmSedTimesBtn');
+  if(sedTimesBtn){
+    sedTimesBtn.addEventListener('click', ()=>{
+      const startVal = document.getElementById('sedStartInput').value; // "HH:MM" 24-hour, native picker
+      const endVal = document.getElementById('sedEndInput').value;
+      if(!startVal || !endVal) return;
+      const [sh, sm] = startVal.split(':').map(Number);
+      const [eh, em] = endVal.split(':').map(Number);
+      let diff = (eh*60+em) - (sh*60+sm);
+      if(diff < 0) diff += 24*60; // overnight wraparound
+      if(diff <= 0 || diff > 600) return; // ignore nonsensical ranges, leave prompt open
+      caseAnswers.sedationAnswered = true;
+      caseAnswers.sedationMinutes = diff;
+      renderAll();
+    });
+  }
+}
+
+function renderCodes(){
+  const {codes, flags} = suggestCodes();
+  const codeOut = document.getElementById('codeOut');
+  const flagOut = document.getElementById('flagOut');
+  codeOut.innerHTML = codes.length ? codes.map(c=>`
+    <div class="code-item"><div class="code">${c.code}</div><div class="desc">${c.desc}</div></div>
+  `).join('') : `<div class="hint">No vessels yet.</div>`;
+  // Pending (⏳) items already have an interactive prompt in the panel above —
+  // skip them here to avoid showing the same blocked item twice.
+  flagOut.innerHTML = flags.filter(f=>!f.startsWith('⏳')).map(f=>`<div class="flag-item"><b>Review:</b>&nbsp;${f}</div>`).join('');
+}
+
+function renderAll(){
+  renderPending();
+  renderCodes();
+}
+
+// ---------- Copy buttons ----------
+document.getElementById('copyCodesBtn').addEventListener('click', ()=>{
+  const {codes} = suggestCodes();
+  const text = codes.map(c=>`${c.code} — ${c.desc}`).join('\n');
+  navigator.clipboard.writeText(text);
+});
+
+// ======================================================================
+// ---------- Op note generator (Findings/Intervention -> draft note) ----
+// ======================================================================
+// Free-text Findings + Intervention boxes, parsed with the same
+// deterministic regex engine as the coding analyzer above (no LLM
+// involvement). A vessel mentioned only in Findings is disease that wasn't
+// treated; a vessel in Intervention gets a treatment paragraph. Side
+// ("right"/"left") is read directly from whatever's typed rather than a
+// separate scope selector, defaulting only when nothing states it anywhere.
+// Anything still missing after parsing — access confirmation, sedation
+// time, ultrasound guidance, a stent size — surfaces as an optional,
+// non-blocking follow-up; the note always generates regardless, just less
+// complete. This is a draft requiring full physician review before
+// charting, same as the coding side of this tool.
+
+const ANATOMIC_VESSEL_CHECKLIST = [
+  {key:'commonIliac', label:'common iliac artery'},
+  {key:'externalIliac', label:'external iliac artery'},
+  {key:'internalIliac', label:'internal iliac artery'},
+  {key:'cfa', label:'common femoral artery'},
+  {key:'profunda', label:'profunda femoral artery'},
+  {key:'sfa', label:'superficial femoral artery'},
+  {key:'popliteal', label:'popliteal artery'},
+  {key:'at', label:'anterior tibial artery'},
+  {key:'pt', label:'posterior tibial artery'},
+  {key:'peroneal', label:'peroneal artery'},
+  {key:'dp', label:'dorsalis pedis artery'}
+];
+const ANATOMIC_BY_KEY = {};
+ANATOMIC_VESSEL_CHECKLIST.forEach(v=>{ ANATOMIC_BY_KEY[v.key] = v; });
+const ANATOMIC_INDEX = {};
+ANATOMIC_VESSEL_CHECKLIST.forEach((v,i)=>{ ANATOMIC_INDEX[v.key] = i; });
+
+// Finer-grained than VESSEL_MAP above (which deliberately merges CFA/
+// profunda and SFA/popliteal into one billable vessel for coding purposes)
+// — the generated note needs to name each anatomic segment individually,
+// the way a real dictation does.
+const NOTEGEN_VESSEL_MAP = [
+  [/\bcommon iliac\b/, 'commonIliac'],
+  [/\bexternal iliac\b/, 'externalIliac'],
+  [/\binternal iliac\b/, 'internalIliac'],
+  [/\bcommon femoral\b|\bcfa\b/, 'cfa'],
+  [/profunda|deep femoral|\bpfa\b/, 'profunda'],
+  [/\bsfa\b|superficial femoral/, 'sfa'],
+  [/\bpopliteal\b/, 'popliteal'],
+  [/tibioperoneal trunk|\btp trunk\b/, 'tptrunk'],
+  [/\banterior tibial\b|\bata\b/, 'at'],
+  // PTA is deliberately NOT mapped here — in this tool (and standard IR
+  // shorthand) it means percutaneous transluminal angioplasty, the same
+  // abbreviation analyzeSegmentText() already checks for as a MODALITY.
+  // Aliasing it to "posterior tibial artery" too would make a line like
+  // "PTA of SFA" genuinely ambiguous. "PT" already covers posterior tibial
+  // unambiguously.
+  [/\bposterior tibial\b/, 'pt'],
+  [/\bperoneal\b|\bpero\b/, 'peroneal'],
+  [/dorsalis pedis|\bdpa\b/, 'dp']
+];
+
+// Short two/three-letter abbreviations ("PT plasty", "AT stent", "DP angio")
+// are common shorthand but several are also ordinary English words ("at",
+// "per", "pop") — matching those anywhere in the text risks a false vessel
+// match off a stray preposition. Anchoring to the START of a clause (after
+// stripping an optional leading side word) is safe because shorthand
+// convention leads with the vessel, and this is only consulted as a
+// fallback after the full vessel-name patterns above already had a chance
+// to match anywhere in the clause.
+const NOTEGEN_ABBREV_LEADING_MAP = [
+  [/^cia\b/, 'commonIliac'],
+  [/^eia\b/, 'externalIliac'],
+  [/^iia\b/, 'internalIliac'],
+  [/^cfa\b/, 'cfa'],
+  [/^sfa\b/, 'sfa'],
+  [/^pop(lit)?\b/, 'popliteal'],
+  [/^at\b/, 'at'],
+  [/^pt\b/, 'pt'],
+  [/^per\b/, 'peroneal'],
+  [/^dp\b/, 'dp']
+];
+
+function detectAnatomicVessel(text){
+  const low = text.toLowerCase().trim();
+  for(const [re, key] of NOTEGEN_VESSEL_MAP){
+    if(re.test(low)) return key;
+  }
+  const withoutSide = low.replace(/^(left|right|lt|rt)\b\s*/, '');
+  for(const [re, key] of NOTEGEN_ABBREV_LEADING_MAP){
+    if(re.test(withoutSide)) return key;
+  }
+  return '';
+}
+
+// A single shorthand line/clause has no surrounding narrative to resolve a
+// trunk mention by proximity (unlike the full-note parser above) — so this
+// only resolves automatically when the SAME text also names the adjacent
+// vessel explicitly. Otherwise it defaults to posterior tibial and is
+// always flagged, since guessing silently here is exactly the failure mode
+// this project treats as the worst kind of bug.
+function resolveTpTrunk(text){
+  const low = text.toLowerCase();
+  if(/\bperoneal\b/.test(low)) return {key:'peroneal', flagged:false};
+  if(/\bposterior tibial\b/.test(low)) return {key:'pt', flagged:false};
+  return {key:'pt', flagged:true};
+}
+
+function extractPercentStenosis(text){
+  const m = text.match(/(\d{1,3})\s?(?:%|\bpercent\b|\bpct\b\.?)/i);
+  if(!m) return null;
+  const val = parseInt(m[1],10);
+  return (val>=1 && val<=99) ? val : null;
+}
+
+function extractLocationPhrase(text){
+  const locMatch = text.match(/\b(proximal|mid|middle|distal|origin)\b/i);
+  const lenMatch = text.match(/(\d+(\.\d+)?)\s?cm\b/i);
+  const parts = [];
+  if(locMatch) parts.push(locMatch[1].toLowerCase());
+  if(lenMatch) parts.push(lenMatch[0].replace(/\s+/g,''));
+  return parts.join(', ');
+}
+
+// Finds every "<size>mm [type] stent" mention. Only counts a mention as a
+// distinct device if an actual size was found nearby in front of it —
+// otherwise a generic earlier reference to "stent" in the same text (e.g.
+// "SFA stent of 80% stenosis with 6mm x 150mm SES stent") would get
+// double-counted as a second, sizeless device instead of recognized as the
+// same one.
+function extractStents(text){
+  const stents = [];
+  const stentRe = /stents?\b/gi;
+  let m;
+  while((m = stentRe.exec(text)) !== null){
+    const windowStart = Math.max(0, m.index - 40);
+    const windowText = text.slice(windowStart, m.index);
+    const sizeMatches = [...windowText.matchAll(/(\d+(\.\d+)?)\s?mm/gi)];
+    if(!sizeMatches.length) continue; // generic "stent" mention, no device nearby — skip
+    const size = sizeMatches.length >= 2
+      ? sizeMatches[sizeMatches.length-2][0].replace(/\s+/g,'') + 'x' + sizeMatches[sizeMatches.length-1][0].replace(/\s+/g,'')
+      : sizeMatches[0][0].replace(/\s+/g,'');
+    let type = 'self-expanding';
+    if(/balloon[- ]?expandable|\bbes\b|\bbe\b/i.test(windowText)) type = 'balloon-expandable';
+    else if(/covered/i.test(windowText)) type = 'covered';
+    stents.push({size, type});
+  }
+  return stents;
+}
+
+// Reuses analyzeSegmentText() — the same function the coding analyzer runs
+// on full-note clauses above — for lesion type, modality flags, and DCB/
+// balloon size, then layers on the generator-specific fields (vessel
+// identity, % stenosis, location, multi-stent list, explicit-normal) the
+// coder doesn't need.
+function parseShorthandLine(text){
+  const base = analyzeSegmentText(text);
+  let vesselKey = detectAnatomicVessel(text);
+  let tpTrunkFlagged = false;
+  if(vesselKey === 'tptrunk'){
+    const resolved = resolveTpTrunk(text);
+    vesselKey = resolved.key;
+    tpTrunkFlagged = resolved.flagged;
+  }
+  let stents = extractStents(text);
+  if(base.stent && stents.length===0){
+    stents = [{size: base.stentSize || '', type: base.stentType || 'self-expanding'}];
+  }
+  const relevantBalloon = base.angioplasty || base.dcb || base.lithotripsy;
+  // "Patent"/"normal" in Findings text is itself a finding — explicit
+  // confirmation the vessel was looked at and is fine — not a gap to flag.
+  const explicitlyNormal = /\bpatent\b|\bnormal\b|\bno (significant |evidence of )?stenosis\b/i.test(text) && !base.lesionConfirmed;
+  return {
+    vesselKey,
+    lesion: base.lesion,
+    lesionConfirmed: base.lesionConfirmed,
+    explicitlyNormal,
+    percentStenosis: extractPercentStenosis(text),
+    location: extractLocationPhrase(text),
+    angioplasty: base.angioplasty,
+    dcb: base.dcb,
+    balloonSize: relevantBalloon ? base.balloonSize : '',
+    atherectomy: base.atherectomy,
+    lithotripsy: base.lithotripsy,
+    stent: base.stent || stents.length>0,
+    stents,
+    tpTrunkFlagged,
+    result: base.result === 'good result' ? 'good angiographic result with no residual stenosis' : base.result
+  };
+}
+
+// ---------- Shared paragraph-segmentation helpers ----------
+const BRIDGE_LANGUAGE_RE = /\binto\b|\bextending\b|\bcontinuing\b|\bcontinues\b/i;
+
+function detectClauseSide(text){
+  const low = text.toLowerCase();
+  if(/\b(right|rt)\b/.test(low)) return 'right';
+  if(/\b(left|lt)\b/.test(low)) return 'left';
+  return null;
+}
+
+// Per-clause vessel detection for Findings/Intervention paragraphs: full
+// vessel names anywhere in the clause take priority (same precedence as
+// detectAnatomicVessel()); a leading abbreviation is the fallback. Returns
+// ALL distinct vessel matches in the clause, not just the first, so a
+// single clause naming two vessels with bridging language — "SFA into the
+// popliteal artery" — can be recognized as connecting both.
+function clauseVesselKeys(text){
+  const fullMatches = [];
+  for(const [re, key] of NOTEGEN_VESSEL_MAP){
+    const g = new RegExp(re.source, 'gi');
+    let m;
+    while((m = g.exec(text)) !== null) fullMatches.push({index:m.index, key});
+  }
+  fullMatches.sort((a,b)=>a.index-b.index);
+  if(fullMatches.length){
+    return fullMatches.map(m=>{
+      if(m.key === 'tptrunk'){
+        const r = resolveTpTrunk(text);
+        return {index:m.index, key:r.key, tpTrunkFlagged:r.flagged};
+      }
+      return m;
+    });
+  }
+  const trimmed = text.trim().toLowerCase().replace(/^(left|right|lt|rt)\b\s*/, '');
+  for(const [re, key] of NOTEGEN_ABBREV_LEADING_MAP){
+    if(re.test(trimmed)) return [{index:0, key}];
+  }
+  return [];
+}
+
+// True when a clause is essentially just the vessel name/abbreviation
+// itself with no actual descriptor — e.g. "AT" on its own from splitting
+// "AT and PT patent" into "AT" + "PT patent". A clause like that almost
+// always shares the next clause's trailing status word.
+function isBareVesselClause(text){
+  let t = text.trim().toLowerCase().replace(/^(left|right|lt|rt)\b\s*/, '');
+  for(const [re] of NOTEGEN_VESSEL_MAP){ t = t.replace(new RegExp(re.source, 'gi'), ''); }
+  for(const [re] of NOTEGEN_ABBREV_LEADING_MAP){ t = t.replace(new RegExp(re.source, 'i'), ''); }
+  return t.trim().length === 0;
+}
+
+// Splits a Findings or Intervention paragraph into clauses (sentence/comma/
+// semicolon/"and"), groups them by vessel, and tracks which side ("right"/
+// "left") each vessel belongs to. Side is read once and carried forward
+// until a clause states a different one — "right SFA stent, popliteal
+// occluded" applies "right" to both, the same way a person would say it.
+// A clause naming two vessels with bridging language ("into", "extending",
+// "continuing") is tagged as one bridge group instead of being split.
+function segmentNotegenText(text){
+  const rawPieces = (text||'').split(/[,.;]\s+|\s+and\s+/i);
+  let cursor = 0;
+  const clauses = [];
+  rawPieces.forEach(raw=>{
+    const trimmed = raw.trim();
+    if(!trimmed) return;
+    const idx = text.indexOf(trimmed, cursor);
+    const start = idx >= 0 ? idx : cursor;
+    cursor = start + trimmed.length;
+    clauses.push({text: trimmed, start});
+  });
+
+  const order = [];
+  const byKey = {};
+  let lastKeys = [];
+  let runningSide = null;
+
+  // Dedup key is SIDE+vessel, not vessel alone — "right SFA..." and a later
+  // "left SFA..." clause are genuinely different segments (a bilateral
+  // case treating the same-named vessel on both legs) and must not get
+  // silently merged into one, which would both garble the text fed to the
+  // parser for that entry and, more importantly, drop one leg's billing
+  // entirely. (Tab 1's full-note parser already keys this way; this tab
+  // had the same vessel-only keying bug independently.) When side is
+  // unstated throughout (the common single-leg-note case), runningSide
+  // stays null for every clause and this behaves exactly as before.
+  // A trailing catch-all closing phrase ("rest patent", "remainder
+  // normal", "all others unremarkable") is a blanket statement about
+  // everything NOT explicitly named — it's not describing whichever
+  // vessel happened to be mentioned last. The auto-filled normal-vessel
+  // checklist already covers that meaning separately. Without this guard
+  // the carry-forward branch below glued it onto the previous vessel's
+  // clause text, and if that vessel's own finding never used the literal
+  // word "stenosis"/"occluded" (e.g. "SFA 80%, rest patent"), the merged
+  // text read as an unconfirmed lesion PLUS the word "patent" — which
+  // tripped the explicit-normal filter and silently dropped a real,
+  // stated 80% finding entirely. Real silent data loss, not just a
+  // missed parse.
+  const CATCHALL_NORMAL_RE = /^(the\s+)?(rest|remainder|remaining|other vessels?|all others?|everything else)\b/i;
+
+  clauses.forEach((piece, idx)=>{
+    const explicitSide = detectClauseSide(piece.text);
+    if(explicitSide) runningSide = explicitSide;
+    if(CATCHALL_NORMAL_RE.test(piece.text.trim()) && /\b(patent|normal|unremarkable)\b/i.test(piece.text)){
+      lastKeys = [];
+      return;
+    }
+    const matches = clauseVesselKeys(piece.text);
+    if(matches.length){
+      const distinctKeys = [...new Set(matches.map(m=>m.key))];
+      const isBridge = distinctKeys.length > 1 && BRIDGE_LANGUAGE_RE.test(piece.text);
+      const keysToUse = isBridge ? distinctKeys : [distinctKeys[0]];
+      const tpFlag = matches.some(m=>m.tpTrunkFlagged);
+      const extraText = (isBareVesselClause(piece.text) && clauses[idx+1]) ? (' ' + clauses[idx+1].text) : '';
+      const compKeysToUse = keysToUse.map(key=>(runningSide||'')+'|'+key);
+      keysToUse.forEach((key, i)=>{
+        const compKey = compKeysToUse[i];
+        if(!byKey[compKey]){ byKey[compKey] = {key, text:'', side: runningSide, explicitSide: !!explicitSide, bridgeGroup: isBridge ? keysToUse.slice() : null, tpTrunkFlagged: tpFlag}; order.push(compKey); }
+        byKey[compKey].text += ' ' + piece.text + extraText;
+      });
+      lastKeys = compKeysToUse;
+    } else if(lastKeys.length){
+      lastKeys.forEach(compKey=>{ byKey[compKey].text += ' ' + piece.text; });
+    }
+  });
+  return order.map(k=>byKey[k]);
+}
+
+function ngHasTreatment(t){
+  return !!(t && (t.angioplasty || t.dcb || t.atherectomy || t.lithotripsy || (t.stents && t.stents.length)));
+}
+
+// ---------- State ----------
+let ngExcludedKeys = new Set();   // "side|key" entries the user removed from a parse
+let ngManualLesion = {};          // "side|key" -> 'straightforward'|'complex'
+let ngManualStentSize = {};       // "side|key" -> "6x150mm" (overrides a missing stent size)
+let ngUsGuidanceAnswer = null;    // null | true | false — manual answer when not detected in text
+let ngSedationAnswered = false;
+let ngSedationMinutes = 0;
+let ngPrimaryAccess = new Set();     // subset of 'leftFemoral','rightFemoral','leftBrachial','rightBrachial'
+let ngSecondaryAccess = new Set();   // subset of 'pt','at','popliteal','peroneal' — bailout/retrograde access, auto-attached by lesion side
+let ngClosureMethod = null;          // null | 'manual' | 'perclose' | 'mynx' | 'angioseal' — manual answer; auto-forced to 'manual' for brachial-only access
+let ngAortogramTierAnswer = null;    // null | true | false — manual answer for the "ask" tier (crossover or bilateral below-iliac treatment)
+
+function ngFindingsText(){ return document.getElementById('ngFindingsInput').value || ''; }
+function ngInterventionText(){ return document.getElementById('ngInterventionInput').value || ''; }
+function ngCombinedText(){ return ngFindingsText() + ' ' + ngInterventionText(); }
+
+// Determines whether this is a unilateral or bilateral case purely from
+// what's actually typed — no separate scope selector to keep in sync.
+// Falls back to "right" only when neither side is ever stated anywhere in
+// either box (no Default Leg selector any more — Access is now the only
+// place laterality gets set explicitly, and Access doesn't gate this).
+function ngComputeSides(){
+  const segs = [...segmentNotegenText(ngFindingsText()), ...segmentNotegenText(ngInterventionText())];
+  const used = new Set(segs.map(s=>s.side).filter(Boolean));
+  if(used.has('right') && used.has('left')) return ['right','left'];
+  if(used.has('right')) return ['right'];
+  if(used.has('left')) return ['left'];
+  return ['right'];
+}
+
+// ---------- Access helpers ----------
+// Vessel-key -> CPT territory, for deriving aortogram-tier and code-table
+// lookups from the notegen tab's finer-grained anatomic keys.
+const NOTEGEN_TERRITORY_BY_KEY = {
+  commonIliac:'iliac', externalIliac:'iliac', internalIliac:'iliac',
+  cfa:'femoropopliteal', profunda:'femoropopliteal', sfa:'femoropopliteal', popliteal:'femoropopliteal',
+  at:'tibioperoneal', pt:'tibioperoneal', peroneal:'tibioperoneal',
+  dp:'inframalleolar'
+};
+
+function ngFemoralAccessSides(){
+  const sides = [];
+  if(ngPrimaryAccess.has('leftFemoral')) sides.push('left');
+  if(ngPrimaryAccess.has('rightFemoral')) sides.push('right');
+  return sides;
+}
+function ngBrachialAccessSides(){
+  const sides = [];
+  if(ngPrimaryAccess.has('leftBrachial')) sides.push('left');
+  if(ngPrimaryAccess.has('rightBrachial')) sides.push('right');
+  return sides;
+}
+function ngHasBrachialAccess(){ return ngBrachialAccessSides().length>0; }
+function ngHasFemoralAccess(){ return ngFemoralAccessSides().length>0; }
+
+// Antegrade if the femoral access is on the same leg being treated;
+// retrograde/crossover if femoral access is on the opposite leg; brachial
+// approach language if access was via the arm with no femoral access on
+// either side; null when nothing's been selected yet (note still drafts
+// with a bracketed placeholder either way).
+function ngApproachForSide(side){
+  const femSides = ngFemoralAccessSides();
+  if(femSides.includes(side)) return 'antegrade';
+  const otherSide = side==='left' ? 'right' : 'left';
+  if(femSides.includes(otherSide)) return 'retrograde';
+  if(ngHasBrachialAccess()) return 'brachial';
+  return null;
+}
+
+// Brachial-only access (no femoral access at all) always closes via manual
+// pressure at the arm stick — no closure-device question needed or shown.
+function ngIsClosureAutoManual(){
+  return ngHasBrachialAccess() && !ngHasFemoralAccess();
+}
+function ngResolvedClosureMethod(){
+  if(ngIsClosureAutoManual()) return 'manual';
+  return ngClosureMethod;
+}
+const NG_CLOSURE_TEXT = {
+  manual: 'manual pressure',
+  perclose: 'a Perclose closure device',
+  mynx: 'a Mynx closure device',
+  angioseal: 'an Angio-Seal closure device'
+};
+
+// Three-tier rule for whether an aortogram / leg angiogram is included and
+// whether it needs to be asked about:
+//  - 'auto'  — any iliac territory treated, or any brachial access used.
+//              Always included, no question asked.
+//  - 'ask'   — below-iliac treatment only, and either the access is
+//              crossover (treated leg ≠ femoral access leg) or the case is
+//              bilateral. Asked once in "Needs your input"; defaults to
+//              not-included until answered.
+//  - 'none'  — below-iliac treatment only, unilateral, fully ipsilateral
+//              femoral access (no brachial). Never included, never asked.
+function ngAortogramTier(){
+  const sides = ngComputeSides();
+  const treatedTerritories = new Set();
+  ngRecords().forEach(r=>{
+    if(ngHasTreatment(r.treatment)) treatedTerritories.add(NOTEGEN_TERRITORY_BY_KEY[r.key]);
+  });
+  if(treatedTerritories.has('iliac') || ngHasBrachialAccess()) return 'auto';
+  if(!treatedTerritories.size) return 'none'; // nothing treated yet — nothing to justify
+  if(sides.length === 2) return 'ask';
+  const femSides = ngFemoralAccessSides();
+  const ipsilateral = femSides.length === 1 && femSides[0] === sides[0];
+  return ipsilateral ? 'none' : 'ask';
+}
+function ngAortogramIncluded(){
+  const tier = ngAortogramTier();
+  if(tier === 'auto') return true;
+  if(tier === 'ask') return ngAortogramTierAnswer === true;
+  return false;
+}
+
+// Unified per-vessel view (unfiltered except for explicit-normal vessels —
+// includes user-excluded keys, used by the parsed-review list so "Remove"
+// can still show an Undo). Records are keyed by side+vessel, since a
+// bilateral case can have the same vessel on both legs.
+function ngRawRecords(){
+  const sides = ngComputeSides();
+  const findingSegsRaw = segmentNotegenText(ngFindingsText());
+  const interventionSegsRaw = segmentNotegenText(ngInterventionText());
+
+  function resolve(segs){
+    return segs.map(s=>{
+      // Side is only genuinely ambiguous when this is a bilateral case AND
+      // this particular clause never stated one — default to the first
+      // side so the note still generates, but flag it so a pending note
+      // can invite a quick fix in the text.
+      const side = s.side || sides[0];
+      const sideAmbiguous = !s.side && sides.length === 2;
+      return Object.assign({key:s.key, side, sideAmbiguous, bridgeGroup:s.bridgeGroup, tpTrunkFlagged:s.tpTrunkFlagged}, parseShorthandLine(s.text));
+    });
+  }
+
+  const findingSegs = resolve(findingSegsRaw);
+  const interventionSegs = resolve(interventionSegsRaw);
+
+  const findingsByKey = {}; findingSegs.forEach(s=>{ findingsByKey[s.side+'|'+s.key] = s; });
+  const interventionByKey = {}; interventionSegs.forEach(s=>{ interventionByKey[s.side+'|'+s.key] = s; });
+
+  const order = [];
+  const seen = new Set();
+  [...findingSegs, ...interventionSegs].forEach(s=>{
+    const ck = s.side+'|'+s.key;
+    if(!seen.has(ck)){ seen.add(ck); order.push(ck); }
+  });
+
+  return order
+    // A vessel explicitly called "patent"/"normal" in Findings, with no
+    // treatment, isn't a gap to surface — let it fall through to the
+    // normal-vessel checklist rather than showing an "unstated lesion".
+    .filter(ck=>{
+      const f = findingsByKey[ck];
+      const t = interventionByKey[ck];
+      return !(f && f.explicitlyNormal && !ngHasTreatment(t));
+    })
+    .map(ck=>{
+      const [side, key] = [ck.slice(0, ck.indexOf('|')), ck.slice(ck.indexOf('|')+1)];
+      return {side, key, compositeKey: ck, finding: findingsByKey[ck]||null, treatment: interventionByKey[ck]||null};
+    });
+}
+
+function ngRecords(){
+  return ngRawRecords().filter(r=>!ngExcludedKeys.has(r.compositeKey));
+}
+
+// A vessel can have stenosis/occlusion in Findings without ever being
+// fixed — splitting Findings from Intervention keeps that distinction
+// explicit rather than assuming disease implies treatment. Lesion type is
+// read from whichever side actually states it (Findings preferred,
+// Intervention as fallback, manual override on top of both).
+function ngEffectiveLesion(record){
+  const k = record.compositeKey;
+  if(ngManualLesion[k]) return {lesion: ngManualLesion[k], confirmed:true};
+  if(record.finding && record.finding.lesionConfirmed) return {lesion: record.finding.lesion, confirmed:true};
+  if(record.treatment && record.treatment.lesionConfirmed) return {lesion: record.treatment.lesion, confirmed:true};
+  return {lesion: (record.finding && record.finding.lesion) || (record.treatment && record.treatment.lesion) || 'straightforward', confirmed:false};
+}
+function ngEffectivePercent(record){
+  if(record.finding && record.finding.percentStenosis!=null) return record.finding.percentStenosis;
+  if(record.treatment && record.treatment.percentStenosis!=null) return record.treatment.percentStenosis;
+  return null;
+}
+function ngEffectiveLocation(record){
+  return (record.finding && record.finding.location) || (record.treatment && record.treatment.location) || '';
+}
+// Stent size, with the manual pending-answer override applied on top.
+function ngEffectiveStentSize(record, stentIdx){
+  const k = record.compositeKey + '|' + stentIdx;
+  if(ngManualStentSize[k]) return ngManualStentSize[k];
+  const s = record.treatment && record.treatment.stents && record.treatment.stents[stentIdx];
+  return s ? s.size : '';
+}
+
+// ---------- Rendering: parsed review list ----------
+function ngSummarizeRecord(r){
+  const label = (ANATOMIC_BY_KEY[r.key]||{label:r.key}).label;
+  const eff = ngEffectiveLesion(r);
+  const pct = ngEffectivePercent(r);
+  const lesionWord = !eff.confirmed
+    ? 'stenosis/occlusion unstated'
+    : (eff.lesion==='complex' ? 'occluded' : (pct!=null ? pct+'% stenosis' : 'stenosis'));
+  const treated = ngHasTreatment(r.treatment);
+  const treatText = treated
+    ? 'treated: ' + (ngModalityClauses(r, true).join('; ') || 'modality unclear')
+    : 'not treated';
+  const sideTag = r.sideAmbiguous ? ' [side unclear — defaulted]' : '';
+  return `${ngSideLabel(r.side)} ${label} — ${lesionWord}, ${treatText}${sideTag}`;
+}
+
+function ngRenderParsed(){
+  const el = document.getElementById('ngParsedList');
+  const records = ngRawRecords();
+  if(!records.length){
+    el.innerHTML = '<div class="hint">Nothing parsed yet — type or dictate findings and/or intervention above.</div>';
+    return;
+  }
+  el.innerHTML = records.map(r=>{
+    const excluded = ngExcludedKeys.has(r.compositeKey);
+    return `<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--line); ${excluded ? 'opacity:.45; text-decoration:line-through;' : ''}">
+      <span>${ngSummarizeRecord(r)}</span>
+      <button class="secondary small" data-ng-toggle-exclude="${r.compositeKey}">${excluded ? 'Undo' : 'Remove'}</button>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('[data-ng-toggle-exclude]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const k = b.dataset.ngToggleExclude;
+      if(ngExcludedKeys.has(k)) ngExcludedKeys.delete(k); else ngExcludedKeys.add(k);
+      ngRenderAll();
+    });
+  });
+}
+
+// ---------- Rendering: needs-your-input follow-ups ----------
+// Everything here is optional — the note already reflects a reasonable
+// default or a bracketed placeholder for each of these before they're
+// answered. Answering just makes the note more complete.
+function ngRenderPending(){
+  const items = [];
+  const records = ngRecords();
+  const combinedLow = ngCombinedText().toLowerCase();
+
+  records.forEach(r=>{
+    if(ngHasTreatment(r.treatment) && !ngEffectiveLesion(r).confirmed){
+      const label = (ANATOMIC_BY_KEY[r.key]||{label:r.key}).label;
+      items.push(`<div class="pending-item">
+        <div class="ptext"><b>${ngSideLabel(r.side)} ${label}:</b> treated, but stenosis or occlusion wasn't stated — which is it?</div>
+        <button data-ng-confirm-lesion="${r.compositeKey}" data-value="straightforward">Stenosis</button>
+        <button data-ng-confirm-lesion="${r.compositeKey}" data-value="complex">Occlusion/CTO</button>
+      </div>`);
+    }
+    if(ngHasTreatment(r.treatment) && r.treatment.stents){
+      r.treatment.stents.forEach((s, i)=>{
+        if(!ngEffectiveStentSize(r, i)){
+          const label = (ANATOMIC_BY_KEY[r.key]||{label:r.key}).label;
+          items.push(`<div class="pending-item">
+            <div class="ptext"><b>${ngSideLabel(r.side)} ${label} stent size?</b> (diameter x length, e.g. 6x150mm)</div>
+            <input type="text" data-ng-stent-size-input="${r.compositeKey}|${i}" placeholder="6x150mm" style="width:110px; display:inline-block;">
+            <button data-ng-confirm-stent-size="${r.compositeKey}|${i}">Save</button>
+          </div>`);
+        }
+      });
+    }
+    if(r.sideAmbiguous){
+      const label = (ANATOMIC_BY_KEY[r.key]||{label:r.key}).label;
+      items.push(`<div class="pending-item"><div class="ptext"><b>${label}:</b> this case has findings on both legs but this one didn't say which — defaulted to ${ngSideLabel(r.side)}. Add "right"/"left" to that line in the text above if that's wrong.</div></div>`);
+    }
+  });
+
+  if(records.some(ngHasTreatment) || records.length){
+    if(!/ultrasound[\s-]?(guid|guided)/i.test(combinedLow) && ngUsGuidanceAnswer===null){
+      items.push(`<div class="pending-item">
+        <div class="ptext"><b>Ultrasound guidance used for access?</b></div>
+        <button data-ng-us-guidance="yes">Yes</button>
+        <button data-ng-us-guidance="no">No</button>
+      </div>`);
+    }
+    const sedDetected = extractSedationMinutes(ngInterventionText() + ' ' + ngFindingsText());
+    if(sedDetected===null && !ngSedationAnswered){
+      items.push(`<div class="pending-item">
+        <div class="ptext"><b>Sedation time?</b> (minutes)</div>
+        <input type="number" id="ngSedMinInput" min="0" placeholder="minutes" style="width:90px; display:inline-block;">
+        <button id="ngConfirmSedMinBtn">Save</button>
+        <button data-ng-sedation-none="1">No sedation</button>
+      </div>`);
+    }
+    if(ngAortogramTier()==='ask' && ngAortogramTierAnswer===null){
+      items.push(`<div class="pending-item">
+        <div class="ptext"><b>Diagnostic aortogram / leg angiogram performed?</b> Below-iliac treatment with crossover or bilateral access doesn't auto-include this — confirm.</div>
+        <button data-ng-aortogram-tier="yes">Yes, performed</button>
+        <button data-ng-aortogram-tier="no">No</button>
+      </div>`);
+    }
+  }
+
+  const card = document.getElementById('ngPendingCard');
+  const list = document.getElementById('ngPendingList');
+  if(!items.length){ card.style.display = 'none'; list.innerHTML = ''; return; }
+  card.style.display = '';
+  list.innerHTML = items.join('');
+
+  list.querySelectorAll('[data-ng-confirm-lesion]').forEach(b=>{
+    b.addEventListener('click', ()=>{ ngManualLesion[b.dataset.ngConfirmLesion] = b.dataset.value; ngRenderAll(); });
+  });
+  list.querySelectorAll('[data-ng-confirm-stent-size]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const key = b.dataset.ngConfirmStentSize;
+      const input = list.querySelector(`[data-ng-stent-size-input="${key}"]`);
+      if(input && input.value.trim()){ ngManualStentSize[key] = input.value.trim(); ngRenderAll(); }
+    });
+  });
+  list.querySelectorAll('[data-ng-us-guidance]').forEach(b=>{
+    b.addEventListener('click', ()=>{ ngUsGuidanceAnswer = (b.dataset.ngUsGuidance === 'yes'); ngRenderAll(); });
+  });
+  list.querySelectorAll('[data-ng-sedation-none]').forEach(b=>{
+    b.addEventListener('click', ()=>{ ngSedationAnswered = true; ngSedationMinutes = 0; ngRenderAll(); });
+  });
+  list.querySelectorAll('[data-ng-aortogram-tier]').forEach(b=>{
+    b.addEventListener('click', ()=>{ ngAortogramTierAnswer = (b.dataset.ngAortogramTier === 'yes'); ngRenderAll(); });
+  });
+  const sedBtn = document.getElementById('ngConfirmSedMinBtn');
+  if(sedBtn){
+    sedBtn.addEventListener('click', ()=>{
+      const val = parseInt(document.getElementById('ngSedMinInput').value, 10);
+      if(!isNaN(val) && val>=0){ ngSedationAnswered = true; ngSedationMinutes = val; ngRenderAll(); }
+    });
+  }
+}
+
+function ngResolvedUsGuidance(){
+  if(/ultrasound[\s-]?(guid|guided)/i.test(ngCombinedText().toLowerCase())) return true;
+  return ngUsGuidanceAnswer === true;
+}
+function ngResolvedSedationMinutes(){
+  const detected = extractSedationMinutes(ngInterventionText() + ' ' + ngFindingsText());
+  if(detected !== null) return detected;
+  if(ngSedationAnswered) return ngSedationMinutes;
+  return null;
+}
+
+// ---------- Rendering: auto-filled "normal" vessel preview ----------
+function ngComputeNormalsBySide(){
+  const sides = ngComputeSides();
+  const out = {};
+  sides.forEach(side=>{
+    const presentKeys = new Set(ngRecords().filter(r=>r.side===side).map(r=>r.key));
+    out[side] = ANATOMIC_VESSEL_CHECKLIST.filter(v=>!presentKeys.has(v.key));
+  });
+  return out;
+}
+function ngRenderNormalPreview(){
+  const el = document.getElementById('ngNormalList');
+  const bySide = ngComputeNormalsBySide();
+  const sides = Object.keys(bySide);
+  el.innerHTML = sides.map(side=>{
+    const names = bySide[side].map(v=>v.label).join(', ');
+    return `<div style="margin-bottom:6px; padding:8px 10px; background:#F4F6F4; border-left:3px solid var(--accent); border-radius:3px;"><b>${ngSideLabel(side)}:</b> ${names || '(none — every vessel on the checklist has an explicit finding)'}</div>`;
+  }).join('');
+}
+
+// ---------- Note text generation ----------
+function ngSideLabel(side){ return side==='right' ? 'Right' : 'Left'; }
+function ngCapFirst(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
+function ngVesselSpanPhrase(labels){
+  return labels.map((l,i)=> i===0 ? l : 'the '+l).join(' into ');
+}
+
+function ngBuildFindingSentence(label, info){
+  if(!info){
+    return `The ${label} is patent.`;
+  }
+  const locPhrase = info.location ? ` (${info.location})` : '';
+  if(info.lesion === 'complex'){
+    return `The ${label} is occluded${locPhrase}.`;
+  }
+  const pctPhrase = info.percentStenosis ? `${info.percentStenosis}% ` : '';
+  return `The ${label} has a ${pctPhrase}stenosis${locPhrase}.`;
+}
+
+function ngBuildBridgedFindingSentence(sortedKeys, infoByKey){
+  const labels = sortedKeys.map(k=>ANATOMIC_BY_KEY[k].label);
+  const labelPhrase = ngVesselSpanPhrase(labels);
+  const anyComplex = sortedKeys.some(k=> infoByKey[k] && infoByKey[k].lesion==='complex');
+  if(anyComplex){
+    return `The lesion extending from the ${labelPhrase} is occluded.`;
+  }
+  const pct = sortedKeys.map(k=>infoByKey[k] && infoByKey[k].percentStenosis).find(p=>p!=null);
+  const pctPhrase = pct ? `${pct}% ` : '';
+  return `The lesion extending from the ${labelPhrase} has a continuous ${pctPhrase}stenosis.`;
+}
+
+// Aortogram is performed once per case (it's the catheter's path down to
+// wherever the leg angiogram(s) start), not once per leg — so its finding
+// belongs as a single case-level line, not duplicated inside each leg's
+// "leg angiogram revealed" sentence. This tool doesn't separately parse
+// aortic or renal artery disease (no shorthand vocabulary for it yet), so
+// the aorta/renal-artery portion is always reported as patent; only the
+// iliac-systems portion varies based on whether any iliac finding was
+// actually entered (on either side, since iliac disease found anywhere
+// means the case-level "normal" line is no longer accurate).
+function ngAnyIliacFindingAnywhere(){
+  const iliacKeys = ['commonIliac','externalIliac','internalIliac'];
+  return ngRecords().some(r=>iliacKeys.includes(r.key));
+}
+function ngBuildAortogramFindingsLine(){
+  if(!ngAnyIliacFindingAnywhere()){
+    return 'Aortogram revealed patent abdominal aorta, widely patent bilateral renal arteries, and patent bilateral iliac systems without significant stenotic disease.';
+  }
+  return 'Aortogram revealed a patent abdominal aorta and widely patent bilateral renal arteries; see iliac findings below.';
+}
+
+function ngBuildFindingsForSide(side){
+  const records = ngRecords().filter(r=>r.side===side);
+  const byKey = {};
+  const infoByKey = {};
+  records.forEach(r=>{
+    byKey[r.key] = r;
+    infoByKey[r.key] = {lesion: ngEffectiveLesion(r).lesion, percentStenosis: ngEffectivePercent(r), location: ngEffectiveLocation(r)};
+  });
+
+  const groupOfKey = {};
+  records.forEach(r=>{
+    const bg = (r.treatment && r.treatment.bridgeGroup) || (r.finding && r.finding.bridgeGroup);
+    if(bg && bg.length > 1){
+      const sortedKeys = [...new Set(bg)].sort((a,b)=>ANATOMIC_INDEX[a]-ANATOMIC_INDEX[b]);
+      sortedKeys.forEach(k=>{ groupOfKey[k] = sortedKeys; });
+    }
+  });
+
+  const emitted = new Set();
+  function sentenceFor(k){
+    const group = groupOfKey[k];
+    if(group && group.length > 1){
+      const groupId = group.join('|');
+      if(emitted.has(groupId)) return null;
+      emitted.add(groupId);
+      return ngBuildBridgedFindingSentence(group, infoByKey);
+    }
+    return ngBuildFindingSentence(ANATOMIC_BY_KEY[k].label, infoByKey[k]);
+  }
+
+  const sentences = [];
+  const iliacKeys = ['commonIliac','externalIliac','internalIliac'];
+  iliacKeys.forEach(k=>{ if(!byKey[k]) return; const s = sentenceFor(k); if(s) sentences.push(s); });
+  const femKeys = ['cfa','profunda','sfa'];
+  if(femKeys.every(k=>!byKey[k])){
+    sentences.push(`${ngSideLabel(side)} common femoral, deep femoral, superficial femoral arteries are patent.`);
+  } else {
+    femKeys.forEach(k=>{ const s = sentenceFor(k); if(s) sentences.push(s); });
+  }
+  ['popliteal','at','pt','peroneal','dp'].forEach(k=>{
+    const s = sentenceFor(k); if(s) sentences.push(s);
+  });
+  return sentences.join(' ');
+}
+
+// includeStentSize=true to show the resolved/overridden size in the parsed
+// summary list; the note-building path always wants the resolved size.
+function ngModalityClauses(rOrT, forSummary){
+  const t = rOrT.treatment ? rOrT.treatment : rOrT; // accepts either a record or a raw treatment object
+  const record = rOrT.treatment ? rOrT : null;
+  if(!t) return [];
+  const clauses = [];
+  if(t.atherectomy) clauses.push('atherectomy was performed');
+  if(t.angioplasty && !t.dcb) clauses.push(`the lesion was treated with ${t.balloonSize ? t.balloonSize+' ' : ''}conventional balloon angioplasty`);
+  if(t.lithotripsy) clauses.push(`the lesion was treated with a${t.balloonSize ? ' '+t.balloonSize : ''} intravascular lithotripsy (IVL) balloon`);
+  if(t.dcb) clauses.push(`the vessel was treated with a${t.balloonSize ? ' '+t.balloonSize : ''} drug-coated balloon`);
+  (t.stents||[]).forEach((s, i)=>{
+    const size = record ? ngEffectiveStentSize(record, i) : s.size;
+    clauses.push(`a ${s.type}${size ? ' '+size : ''} stent was then placed`);
+  });
+  return clauses;
+}
+
+function ngTreatedSegmentsForSide(side){
+  return ngRecords()
+    .filter(r=>r.side===side && ngHasTreatment(r.treatment))
+    .map(r=>Object.assign({key:r.key, bridgeGroup: r.treatment.bridgeGroup, compositeKey:r.compositeKey}, r.treatment));
+}
+
+function ngGroupTreatedSegments(segs){
+  const groups = [];
+  const consumed = new Set();
+  segs.forEach(s=>{
+    if(consumed.has(s.key)) return;
+    if(s.bridgeGroup && s.bridgeGroup.length > 1){
+      const members = s.bridgeGroup.map(k=>segs.find(x=>x.key===k)).filter(Boolean);
+      members.forEach(m=>consumed.add(m.key));
+      groups.push(members.length ? members : [s]);
+    } else {
+      consumed.add(s.key);
+      groups.push([s]);
+    }
+  });
+  return groups;
+}
+
+function ngBuildInterventionForSide(side){
+  const groups = ngGroupTreatedSegments(ngTreatedSegmentsForSide(side));
+  if(!groups.length) return '';
+  const parts = groups.map((g, idx)=>{
+    const labels = g.map(s=>(ANATOMIC_BY_KEY[s.key]||{label:s.key}).label);
+    const labelPhrase = labels.length > 1 ? `lesion extending from the ${ngVesselSpanPhrase(labels)}` : `${labels[0]} lesion`;
+    const lead = idx===0
+      ? `The ${labelPhrase} was then traversed with a catheter and wire successfully.`
+      : `Attention was then turned to the ${labelPhrase}, which was traversed with a catheter and wire successfully.`;
+    let clauses = [];
+    g.forEach(s=>{ clauses = clauses.concat(ngModalityClauses({treatment:s, compositeKey:s.compositeKey})); });
+    clauses = [...new Set(clauses)];
+    const clauseText = clauses.length ? ngCapFirst(clauses.join('; ')) + '.' : '[treatment details — to complete]';
+    const resultText = `Follow-up imaging revealed ${g[g.length-1].result || 'a good result'}.`;
+    return `${lead} ${clauseText} ${resultText}`;
+  });
+  return parts.join(' ');
+}
+
+function ngAccessOrderedKeys(){
+  return ['leftFemoral','rightFemoral','leftBrachial','rightBrachial'].filter(k=>ngPrimaryAccess.has(k));
+}
+function ngAccessKeySide(accessKey){ return accessKey.startsWith('left') ? 'left' : 'right'; }
+function ngAccessKeyIsBrachial(accessKey){ return /Brachial$/.test(accessKey); }
+function ngAccessKeySiteName(accessKey){ return ngAccessKeyIsBrachial(accessKey) ? 'brachial artery' : 'common femoral artery'; }
+
+// "Left/Right femoral" marks which leg/groin was accessed, not the exact
+// vessel punctured — antegrade sticks sometimes land in the proximal SFA
+// rather than the CFA proper, so the note names the general access region
+// rather than asserting a specific vessel that may not match the chart.
+function ngAccessSiteLabel(accessKey){
+  return ngAccessKeyIsBrachial(accessKey)
+    ? `${ngSideLabel(ngAccessKeySide(accessKey)).toLowerCase()} brachial artery`
+    : `${ngSideLabel(ngAccessKeySide(accessKey)).toLowerCase()} common femoral artery`;
+}
+
+function ngGetXuJustificationText(){
+  const tier = ngAortogramTier();
+  if(tier === 'auto'){
+    return ngHasBrachialAccess()
+      ? 'Diagnostic angiography was performed via the brachial approach to map the aortoiliac and lower extremity runoff anatomy and independently guide the decision to intervene.'
+      : 'Diagnostic aortoiliac angiography was performed given iliac system involvement; findings independently characterized the anatomy and guided the decision to intervene.';
+  }
+  if(tier === 'ask' && ngAortogramTierAnswer === true){
+    return ngComputeSides().length === 2
+      ? 'Diagnostic angiography of the contralateral lower extremity was performed to characterize bilateral runoff anatomy and independently guide the decision to intervene.'
+      : 'Diagnostic angiography was performed to characterize the runoff anatomy of the crossover-accessed limb and independently guide the decision to intervene.';
+  }
+  return '';
+}
+
+function ngBuildAccessSentences(){
+  const keys = ngAccessOrderedKeys();
+  const usGuidance = ngResolvedUsGuidance();
+  if(!keys.length){
+    return '1% lidocaine was used to infiltrate the skin overlying the [access site] and the artery was accessed with a micropuncture needle' + (usGuidance ? ', with ultrasound guidance used to confirm vessel patency and real-time needle-entry visualization' : '') + '. The needle was seen entering the artery and the artery was found to be patent. An image was preserved for the permanent record. A 4 French introducer sheath was placed.';
+  }
+  return keys.map((k, i)=>{
+    const site = ngAccessSiteLabel(k);
+    const isBrachial = ngAccessKeyIsBrachial(k);
+    const side = ngAccessKeySide(k);
+    const treatedSides = ngComputeSides();
+    const approachPhrase = isBrachial
+      ? ' in standard retrograde fashion'
+      : (treatedSides.includes(side) ? ' in antegrade fashion' : ' in standard retrograde fashion, for up-and-over crossover access');
+    const usPhrase = (i===0 && usGuidance) ? ', with ultrasound guidance used to confirm vessel patency and real-time needle-entry visualization' : '';
+    return `1% lidocaine was used to infiltrate the skin overlying the ${site} and the artery was accessed${approachPhrase} with a micropuncture needle${usPhrase}. The needle was seen entering the artery and the artery was found to be patent. An image was preserved for the permanent record. A 4 French introducer sheath was placed.`;
+  }).join(' ');
+}
+
+function ngBuildSecondaryAccessSentence(){
+  const labels = {pt:'posterior tibial artery', at:'anterior tibial artery', popliteal:'popliteal artery', peroneal:'peroneal artery'};
+  const chosen = [...ngSecondaryAccess];
+  if(!chosen.length) return '';
+  const names = chosen.map(k=>labels[k]).join(', ');
+  return ` Retrograde pedal/tibial access via the ${names} was also obtained as needed to facilitate a through-and-through technique to complete the intervention.`;
+}
+
+function ngBuildProcedureDescription(){
+  const sides = ngComputeSides();
+  const accessIncludesIpsilateral = sides.some(s=>ngFemoralAccessSides().includes(s));
+
+  let p = `The patient was brought to the fluoro suite and placed supine on the table. Appropriate monitoring devices were then placed. The patient was prepped and draped in usual sterile fashion. ${ngBuildAccessSentences()}`;
+
+  const tier = ngAortogramTier();
+  const included = ngAortogramIncluded();
+  if(included){
+    p += ` A flush catheter and glidewire were then advanced under fluoroscopic guidance${ngHasBrachialAccess() && !ngHasFemoralAccess() ? ' down the descending thoracic and abdominal aorta' : ' into the aorta'} and an aortogram was then performed.`;
+    if(sides.length===2){
+      p += ` The catheter and wire were then manipulated as needed and a bilateral lower extremity angiogram was then performed.`;
+    } else {
+      const legSide = sides[0];
+      if(!ngFemoralAccessSides().includes(legSide)){
+        p += ` The catheter and wire were then manipulated up and over the aortic bifurcation into the ${legSide} iliac artery and a ${legSide} leg angiogram was then performed.`;
+      } else {
+        p += ` A ${legSide} leg angiogram was then performed.`;
+      }
+    }
+    const xuText = ngGetXuJustificationText();
+    if(xuText) p += ` ${xuText}`;
+  } else if(tier==='ask'){
+    p += ` [Aortogram / leg angiogram inclusion pending — answer "Diagnostic aortogram / leg angiogram performed?" above.]`;
+  } else {
+    const legSide = sides[0];
+    p += ` A catheter and wire were then advanced under fluoroscopic guidance directly into the ${legSide} leg for the intervention below.`;
+  }
+
+  p += ngBuildSecondaryAccessSentence();
+  p += ` The patient was intravenously heparinized and the sheath was exchanged as needed to complete the intervention.`;
+  return p;
+}
+
+function ngBuildProcedurePerformedList(){
+  const usGuidance = ngResolvedUsGuidance();
+  const sides = ngComputeSides();
+  const items = [];
+  const accessKeys = ngAccessOrderedKeys();
+  if(accessKeys.length){
+    accessKeys.forEach((k,i)=>{
+      items.push(`${ngSideLabel(ngAccessKeySide(k))} ${ngAccessKeyIsBrachial(k)?'brachial':'femoral'} access cannulation${(i===0 && usGuidance) ? ' with ultrasound guidance' : ''}`);
+    });
+  } else {
+    items.push(`[Access site] cannulation${usGuidance ? ' with ultrasound guidance' : ''}`);
+  }
+  if([...ngSecondaryAccess].length){
+    items.push(`Retrograde pedal/tibial access (${[...ngSecondaryAccess].join(', ')}) for through-and-through technique`);
+  }
+  if(ngAortogramIncluded()){
+    items.push('Aortogram');
+    if(sides.length===2){
+      items.push('Bilateral lower extremity angiogram');
+    } else {
+      items.push(`${ngSideLabel(sides[0])} leg angiogram`);
+    }
+  }
+  // s.lesion reflects only what the Intervention clause itself said — a
+  // vessel stated as occluded in Findings but described in Intervention
+  // with no repeat of "occluded" (e.g. "...was stented, good result")
+  // would otherwise silently read back as "stenosis" here even though the
+  // billed code (via ngEffectiveLesion, cross-checked against Findings)
+  // correctly came out complex. Build the same cross-checked lookup here
+  // so the narrative agrees with the code.
+  const effectiveLesionByCompositeKey = {};
+  ngRecords().forEach(r=>{ effectiveLesionByCompositeKey[r.compositeKey] = ngEffectiveLesion(r).lesion; });
+
+  sides.forEach(side=>{
+    ngGroupTreatedSegments(ngTreatedSegmentsForSide(side)).forEach(g=>{
+      const labels = g.map(s=>(ANATOMIC_BY_KEY[s.key]||{label:s.key}).label);
+      const labelPhrase = ngVesselSpanPhrase(labels);
+      const modWords = [];
+      if(g.some(s=>s.angioplasty && !s.dcb)) modWords.push('angioplasty');
+      if(g.some(s=>s.dcb)) modWords.push('drug-coated balloon angioplasty');
+      if(g.some(s=>s.atherectomy)) modWords.push('atherectomy');
+      if(g.some(s=>s.lithotripsy)) modWords.push('intravascular lithotripsy');
+      if(g.some(s=>s.stents && s.stents.length)) modWords.push('stent placement');
+      const modText = modWords.length ? modWords.join(' and ') : 'intervention';
+      const lesionWord = g.some(s=>(effectiveLesionByCompositeKey[s.compositeKey] || s.lesion)==='complex') ? 'chronic total occlusion' : 'stenosis';
+      const pct = g.map(s=>s.percentStenosis).find(p=>p!=null);
+      items.push(`${ngSideLabel(side)} leg intervention with ${modText} of ${pct ? pct+'% ' : ''}${lesionWord} of ${labelPhrase}`);
+    });
+  });
+  const sedMin = ngResolvedSedationMinutes();
+  items.push(`Moderate conscious sedation administered with an intra-service time of ${sedMin!=null ? sedMin+' minutes' : '[____] minutes'}`);
+  return items;
+}
+
+function ngGenerateNoteText(){
+  const closureKey = ngResolvedClosureMethod();
+  const closure = closureKey ? NG_CLOSURE_TEXT[closureKey] : '[closure method]';
+  const sides = ngComputeSides();
+
+  const procedurePerformed = ngBuildProcedurePerformedList().map((s,i)=>`${i+1}.\t${s}`).join('\n');
+  const aortogramLine = ngAortogramIncluded() ? ngBuildAortogramFindingsLine() : '';
+  const findingsBlock = [aortogramLine, ...sides.map(side=>`${ngSideLabel(side)} leg angiogram revealed: ${ngBuildFindingsForSide(side)}`)].filter(Boolean).join('\n');
+  const interventionBlock = sides.map(side=>{
+    const text = ngBuildInterventionForSide(side);
+    return text ? `${sides.length===2 ? ngSideLabel(side)+' leg: ' : ''}${text}` : '';
+  }).filter(Boolean).join(' ');
+  const closingLine = `Guidewires and catheters were removed. The introducer sheath${ngAccessOrderedKeys().length>1 ? 's were' : ' was'} withdrawn and hemostasis was achieved with ${closure}. The patient tolerated the procedure without incident.`;
+
+  return [
+    'Post-op Diagnosis',
+    'Same',
+    '',
+    'Procedure Performed',
+    procedurePerformed,
+    '',
+    'Anesthesia',
+    'Moderate conscious sedation',
+    '',
+    'Indications',
+    '[Indications — to complete]',
+    '',
+    'Procedure Description',
+    ngBuildProcedureDescription(),
+    '',
+    'Angiographic findings:',
+    findingsBlock,
+    '',
+    'Intervention: ' + (interventionBlock || '[No vessels treated — add findings above]') + ' ' + closingLine
+  ].join('\n');
+}
+
+function ngRenderNote(){
+  document.getElementById('ngNoteOutput').textContent = ngGenerateNoteText();
+}
+
+// ---------- Code generation (notegen tab) ----------
+// Reuses lookupTerritoryCode()/modalityKey() — the same shared functions
+// tab 1's suggestCodes() uses — but counts initial/additional vessels per
+// SIDE per territory (a bilateral case bills each leg's territory
+// separately), which tab 1 can't do since vesselRows has no laterality
+// field of its own.
+function ngGroupedTreatedRecordsForSide(side){
+  const recs = ngRecords().filter(r=>r.side===side && ngHasTreatment(r.treatment));
+  const groups = [];
+  const consumed = new Set();
+  recs.forEach(r=>{
+    if(consumed.has(r.key)) return;
+    const bg = r.treatment.bridgeGroup;
+    if(bg && bg.length > 1){
+      const members = bg.map(k=>recs.find(x=>x.key===k)).filter(Boolean);
+      members.forEach(m=>consumed.add(m.key));
+      groups.push(members.length ? members : [r]);
+    } else {
+      consumed.add(r.key);
+      groups.push([r]);
+    }
+  });
+  return groups;
+}
+
+function ngSuggestCodes(){
+  const codes = [];
+  const flags = [];
+  const sides = ngComputeSides();
+  let anyTreated = false;
+
+  sides.forEach(side=>{
+    const territoryCount = {};
+    ngGroupedTreatedRecordsForSide(side).forEach(g=>{
+      anyTreated = true;
+      // A bridging lesion is coded once, for the more distal vessel — same
+      // rule tab 1 applies (see mergeBridgingVessels above). ANATOMIC_INDEX
+      // is already ordered proximal -> distal, so the last sorted member
+      // is the territory/vessel-naming winner.
+      const sortedMembers = [...g].sort((a,b)=>ANATOMIC_INDEX[a.key]-ANATOMIC_INDEX[b.key]);
+      const territory = NOTEGEN_TERRITORY_BY_KEY[sortedMembers[sortedMembers.length-1].key];
+      const terr = CODE_TABLE[territory];
+      if(!terr) return;
+      const vesselLabel = sortedMembers.length > 1
+        ? ngVesselSpanPhrase(sortedMembers.map(r=>(ANATOMIC_BY_KEY[r.key]||{label:r.key}).label))
+        : (ANATOMIC_BY_KEY[g[0].key]||{label:g[0].key}).label;
+
+      const combined = {stent: g.some(r=>r.treatment.stent), atherectomy: g.some(r=>r.treatment.atherectomy)};
+      const modKey = modalityKey(combined);
+      const lesions = g.map(r=>ngEffectiveLesion(r));
+      const complexity = lesions.some(l=>l.lesion==='complex') ? 'complex' : 'straightforward';
+      const confirmed = complexity==='complex'
+        ? lesions.some(l=>l.lesion==='complex' && l.confirmed)
+        : lesions.every(l=>l.confirmed);
+
+      const count = territoryCount[territory] || 0;
+      territoryCount[territory] = count + 1;
+      const lookup = lookupTerritoryCode(territory, modKey, complexity, count);
+
+      if(lookup.status === 'invalid-modality'){
+        flags.push(`${ngSideLabel(side)} ${terr.label}: "${modKey}" isn't a valid modality in this territory (e.g. inframalleolar is angioplasty-only) — verify ${vesselLabel} manually.`);
+        return;
+      }
+      if(!confirmed){
+        flags.push(`⏳ ${ngSideLabel(side)} "${vesselLabel}" (${terr.label}) — stenosis vs. occlusion/CTO wasn't stated, so this code is held back. Answer it above in "Needs your input" to generate it.`);
+        return;
+      }
+      if(lookup.status === 'ok'){
+        codes.push({code: lookup.code, desc: `${ngSideLabel(side)} ${terr.label} — ${modKey} (${complexity==='complex'?'occlusion':'stenosis'}), ${lookup.isAdditional?'additional':'initial'} vessel — ${vesselLabel}`});
+      } else if(lookup.status === 'over-max'){
+        flags.push(`${ngSideLabel(side)} ${terr.label}: exceeds max billable additional vessels (${terr.maxAdditional}) — review ${vesselLabel} before submitting.`);
+      }
+
+      if(g.some(r=>r.treatment.lithotripsy)){
+        if(terr.ivl){
+          codes.push({code:'+'+terr.ivl.code, desc:`${ngSideLabel(side)} ${terr.label} — intravascular lithotripsy add-on — ${vesselLabel} (reportable up to ${terr.ivl.maxPerLeg}x/leg in this territory)`});
+        } else {
+          flags.push(`${ngSideLabel(side)} ${terr.label} has no IVL add-on code — lithotripsy performed in ${vesselLabel} is not separately billable here, verify.`);
+        }
+      }
+      if(modKey==='atherectomy' && territory==='iliac'){
+        flags.push(terr.atherNote);
+      }
+      if(g.some(r=>r.treatment.tpTrunkFlagged)){
+        flags.push(`${ngSideLabel(side)} "${vesselLabel}" — tibioperoneal trunk mention couldn't be resolved against an adjacent explicit vessel name in this shorthand line and defaulted to posterior tibial. Confirm before submitting.`);
+      }
+    });
+  });
+
+  if(!anyTreated){
+    flags.push('No treated vessels yet — type or dictate the Intervention box above.');
+    return {codes, flags};
+  }
+
+  if(ngResolvedUsGuidance()){
+    codes.push({code:'76937', desc:'Ultrasound guidance for vascular access — requires documented vessel patency, real-time needle-entry visualization, and a saved permanent image.'});
+  } else if(ngUsGuidanceAnswer===null && !/ultrasound[\s-]?(guid|guided)/i.test(ngCombinedText().toLowerCase())){
+    flags.push('⏳ Ultrasound guidance not yet answered — see "Needs your input" above (or confirm none was used).');
+  }
+
+  const sedMin = ngResolvedSedationMinutes();
+  const sedApprox = sedMin!==null && sedationTimeIsApproximate(ngInterventionText() + ' ' + ngFindingsText());
+  if(sedMin === null){
+    flags.push('⏳ Sedation time not yet answered — see "Needs your input" above (or confirm none was given).');
+  } else if(sedMin > 0){
+    if(sedMin < 10){
+      flags.push(`Sedation time documented as ${sedMin} min — below the 10-minute minimum to report 99152 at all.`);
+    } else {
+      codes.push({code:'99152', desc:`Moderate sedation, same physician, initial 15 minutes (intraservice time ${sedMin} min${sedApprox ? ', documented as approximate' : ''})`});
+      let remaining = sedMin - 15, units = 0;
+      while(remaining >= 8){ units++; remaining -= 15; }
+      if(units>0) flags.push(`+99153 x${units} (each additional 15 min of sedation) is facility-only in this hospital-outpatient setting — not included in the professional code list above; verify on the facility side.`);
+      if(sedApprox) flags.push(`Sedation time was documented with approximate language (e.g. "greater than"/"about") near ${sedMin} min, not stated exactly — confirm the actual intraservice time before submitting, since crossing certain thresholds changes whether an additional +99153 unit applies.`);
+    }
+  }
+
+  const tier = ngAortogramTier();
+  if(ngAortogramIncluded()){
+    codes.push({code:'75625-26', desc:'Aortography, abdominal, by catheter, RS&I — confirm the aortogram independently characterized findings (not just confirmatory imaging) before submitting.'});
+    if(ngComputeSides().length===2){
+      codes.push({code:'75716-26-XU', desc:'Angiography, extremity, bilateral, RS&I — confirm the leg angiogram findings independently drove the treatment decision before submitting.'});
+    } else {
+      codes.push({code:'75710-26-XU', desc:'Angiography, extremity, unilateral, RS&I — confirm the leg angiogram findings independently drove the treatment decision before submitting.'});
+    }
+  } else if(tier === 'ask' && ngAortogramTierAnswer===null){
+    flags.push('⏳ Aortogram / leg angiogram inclusion not yet answered — see "Needs your input" above.');
+  }
+
+  if([...ngSecondaryAccess].length){
+    flags.push('Retrograde pedal/tibial bailout access selected — 36140 may be billable for this additional access per this practice\'s established exception (through-and-through technique); verify current NCCI PTP edit status before submitting.');
+  }
+
+  return {codes, flags};
+}
+
+function ngRenderCodes(){
+  const {codes, flags} = ngSuggestCodes();
+  const codeOut = document.getElementById('ngCodeOut');
+  const flagOut = document.getElementById('ngFlagOut');
+  codeOut.innerHTML = codes.length ? codes.map(c=>`
+    <div class="code-item"><div class="code">${c.code}</div><div class="desc">${c.desc}</div></div>
+  `).join('') : `<div class="hint">No codes yet.</div>`;
+  // ⏳ items already have an interactive prompt in "Needs your input" above —
+  // skip them here to avoid showing the same blocked item twice.
+  flagOut.innerHTML = flags.filter(f=>!f.startsWith('⏳')).map(f=>`<div class="flag-item"><b>Review:</b>&nbsp;${f}</div>`).join('');
+}
+
+function ngRenderAll(){
+  ngRenderAccessChips();
+  ngRenderParsed();
+  ngRenderPending();
+  ngRenderNormalPreview();
+  ngRenderNote();
+  ngRenderCodes();
+}
+
+// ---------- Wiring ----------
+attachDictation('ngFindingsInput', 'ngFindingsDictateBtn', 'ngFindingsDictateStatus', ngRenderAll);
+attachDictation('ngInterventionInput', 'ngInterventionDictateBtn', 'ngInterventionDictateStatus', ngRenderAll);
+document.getElementById('ngFindingsInput').addEventListener('input', ngRenderAll);
+document.getElementById('ngInterventionInput').addEventListener('input', ngRenderAll);
+
+function ngRenderAccessChips(){
+  document.querySelectorAll('#ngPrimaryAccessChips [data-primary-access]').forEach(chip=>{
+    chip.classList.toggle('on', ngPrimaryAccess.has(chip.dataset.primaryAccess));
+  });
+  document.querySelectorAll('#ngSecondaryAccessChips [data-secondary-access]').forEach(chip=>{
+    chip.classList.toggle('on', ngSecondaryAccess.has(chip.dataset.secondaryAccess));
+  });
+  const autoManual = ngIsClosureAutoManual();
+  document.getElementById('ngClosureAutoNote').style.display = autoManual ? '' : 'none';
+  document.getElementById('ngClosureChips').style.display = autoManual ? 'none' : '';
+  document.querySelectorAll('#ngClosureChips [data-closure]').forEach(chip=>{
+    chip.classList.toggle('on', !autoManual && ngClosureMethod === chip.dataset.closure);
+  });
+}
+
+document.querySelectorAll('#ngPrimaryAccessChips [data-primary-access]').forEach(chip=>{
+  chip.addEventListener('click', ()=>{
+    const k = chip.dataset.primaryAccess;
+    if(ngPrimaryAccess.has(k)) ngPrimaryAccess.delete(k); else ngPrimaryAccess.add(k);
+    // Brachial-only access forces closure to manual — clear any prior
+    // device pick so it doesn't linger unused if femoral access is later
+    // added back.
+    if(ngIsClosureAutoManual()) ngClosureMethod = null;
+    ngRenderAccessChips();
+    ngRenderAll();
+  });
+});
+document.querySelectorAll('#ngSecondaryAccessChips [data-secondary-access]').forEach(chip=>{
+  chip.addEventListener('click', ()=>{
+    const k = chip.dataset.secondaryAccess;
+    if(ngSecondaryAccess.has(k)) ngSecondaryAccess.delete(k); else ngSecondaryAccess.add(k);
+    ngRenderAccessChips();
+    ngRenderAll();
+  });
+});
+document.querySelectorAll('#ngClosureChips [data-closure]').forEach(chip=>{
+  chip.addEventListener('click', ()=>{
+    if(ngIsClosureAutoManual()) return; // closure question hidden/forced in this case
+    ngClosureMethod = chip.dataset.closure;
+    ngRenderAccessChips();
+    ngRenderAll();
+  });
+});
+ngRenderAccessChips();
+
+document.getElementById('ngCopyNoteBtn').addEventListener('click', ()=>{
+  navigator.clipboard.writeText(ngGenerateNoteText());
+});
+document.getElementById('ngCopyCodesBtn').addEventListener('click', ()=>{
+  const {codes} = ngSuggestCodes();
+  navigator.clipboard.writeText(codes.map(c=>`${c.code} — ${c.desc}`).join('\n'));
+});
+
+ngRenderAll();
+// ---------- init ----------
+renderAll();
+</script>
+
+</body>
+</html>
