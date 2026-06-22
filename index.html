@@ -120,14 +120,28 @@
 
   <div class="panel active" id="panel-angio">
     <div class="card">
-      <h2><span class="n">1</span>Paste your finished dictated note</h2>
-      <textarea id="noteInput" rows="9" placeholder="Paste the full procedure description here — e.g. 'The anterior tibial artery was cannulated... the distal occlusion was treated with a 2 mm balloon... the peroneal artery was catheterized... treated with 2.5 mm balloon...' etc."></textarea>
+      <h2><span class="n">1</span>What was done? <span style="font-weight:400; color:var(--ink-soft); font-size:11.5px; text-transform:none;">— type shorthand, paste a note, or dictate using your phone's keyboard microphone</span></h2>
+      <textarea id="noteInput" rows="9" placeholder="Type shorthand:  right SFA stent, popliteal atherectomy, AT angioplasty&#10;Paste a note:  paste full op note text here&#10;Or tap the microphone on your iPhone keyboard and dictate — garbled words get fixed by AI before parsing"></textarea>
+
       <div class="toolbar" style="margin-top:8px;">
         <button id="dictateBtn" type="button" class="secondary small">🎤 Dictate</button>
         <span class="hint" id="dictateStatus"></span>
       </div>
-      <div class="hint" id="dictateCaveat">Voice input uses your browser's built-in speech recognition — audio is sent to your browser vendor's cloud to transcribe (same as phone dictation). Speak procedure/vessel details only, not patient name or MRN. Works best in Chrome or Edge; tap again to pause, edit text any time, tap again to resume.</div>
-      <div class="hint">Aortogram/leg-angiogram (75625 / 75710 / 75716), ultrasound guidance, and bridging-lesion vessels are detected automatically from the text below — anything not mentioned will prompt you to confirm before its code is generated.</div>
+      <div class="hint" id="dictateCaveat">Voice input: tap the microphone key on your iPhone keyboard and dictate naturally. On desktop, use the 🎤 button above (Chrome/Edge only). Garbled words are corrected by AI before parsing.</div>
+
+      <!-- AI normalize button — only visible when PROXY_URL is configured -->
+      <div class="toolbar" id="normalizeToolbar" style="margin-top:6px; display:none;">
+        <button id="normalizeBtn" class="secondary small" type="button">✨ Fix dictation errors (AI)</button>
+        <span class="hint" id="normalizeStatus"></span>
+      </div>
+      <div id="normalizeResultCard" style="display:none; margin-top:10px; background:#F4FAF9; border:1px solid #B2D4D2; border-radius:3px; padding:10px 12px;">
+        <div style="font-size:11px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px;">AI corrections — <span style="font-weight:400; text-transform:none;">changes highlighted · edit if needed</span></div>
+        <div id="normalizeDiff" style="font-family:var(--mono); font-size:12px; line-height:1.7; white-space:pre-wrap; word-break:break-word; margin-bottom:8px;"></div>
+        <button id="applyNormalizedBtn" class="secondary small" type="button">Apply corrected text → parse</button>
+        <button id="dismissNormalizeBtn" class="secondary small" type="button" style="margin-left:6px;">Dismiss</button>
+      </div>
+
+      <div class="hint" style="margin-top:8px;">Aortogram/leg-angiogram (75625 / 75710 / 75716), ultrasound guidance, and bridging-lesion vessels are detected automatically — anything ambiguous will prompt you to confirm before its code generates.</div>
       <div class="toolbar">
         <button id="analyzeBtn">Analyze &amp; suggest codes</button>
         <button id="newPatientBtn" class="secondary small" type="button">↺ New patient / start over</button>
@@ -198,6 +212,16 @@
         <button id="ngFindingsDictateBtn" type="button" class="secondary small">🎤 Dictate</button>
         <span class="hint" id="ngFindingsDictateStatus"></span>
       </div>
+      <div class="toolbar" id="ngFindingsNormalizeToolbar" style="display:none; margin-top:4px;">
+        <button id="ngFindingsNormalizeBtn" type="button" class="secondary small">&#10024; Fix dictation errors (AI)</button>
+        <span class="hint" id="ngFindingsNormalizeStatus"></span>
+      </div>
+      <div id="ngFindingsNormalizeResult" style="display:none; margin-top:8px; background:#F4FAF9; border:1px solid #B2D4D2; border-radius:3px; padding:10px 12px;">
+        <div style="font-size:11px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px;">AI corrections <span style="font-weight:400; text-transform:none;">&#8212; edit if needed</span></div>
+        <div id="ngFindingsDiff" style="font-family:var(--mono); font-size:12px; line-height:1.7; white-space:pre-wrap; word-break:break-word; margin-bottom:7px;"></div>
+        <button id="ngFindingsApplyBtn" type="button" class="secondary small">Apply &amp; re-parse</button>
+        <button id="ngFindingsDismissBtn" type="button" class="secondary small" style="margin-left:6px;">Dismiss</button>
+      </div>
     </div>
 
     <div class="card">
@@ -206,6 +230,16 @@
       <div class="toolbar" style="margin-top:6px;">
         <button id="ngInterventionDictateBtn" type="button" class="secondary small">🎤 Dictate</button>
         <span class="hint" id="ngInterventionDictateStatus"></span>
+      </div>
+      <div class="toolbar" id="ngInterventionNormalizeToolbar" style="display:none; margin-top:4px;">
+        <button id="ngInterventionNormalizeBtn" type="button" class="secondary small">&#10024; Fix dictation errors (AI)</button>
+        <span class="hint" id="ngInterventionNormalizeStatus"></span>
+      </div>
+      <div id="ngInterventionNormalizeResult" style="display:none; margin-top:8px; background:#F4FAF9; border:1px solid #B2D4D2; border-radius:3px; padding:10px 12px;">
+        <div style="font-size:11px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px;">AI corrections <span style="font-weight:400; text-transform:none;">&#8212; edit if needed</span></div>
+        <div id="ngInterventionDiff" style="font-family:var(--mono); font-size:12px; line-height:1.7; white-space:pre-wrap; word-break:break-word; margin-bottom:7px;"></div>
+        <button id="ngInterventionApplyBtn" type="button" class="secondary small">Apply &amp; re-parse</button>
+        <button id="ngInterventionDismissBtn" type="button" class="secondary small" style="margin-left:6px;">Dismiss</button>
       </div>
     </div>
 
@@ -282,6 +316,87 @@ document.querySelectorAll('.tab').forEach(t=>{
     t.classList.add('active');
     document.getElementById('panel-'+t.dataset.tab).classList.add('active');
   });
+});
+
+// ---------- AI Normalization Proxy ----------
+// Set this to your Cloudflare Worker URL after deploying worker.js
+// e.g. "https://endovascular-proxy.YOUR-USERNAME.workers.dev"
+// Leave as empty string to hide the normalize button entirely.
+const PROXY_URL = "https://endovascular-proxy.teeleeves1111.workers.dev/";
+
+// Show normalize button only when proxy is configured
+if(PROXY_URL){
+  document.getElementById('normalizeToolbar').style.display = '';
+}
+
+// Simple word-level diff renderer
+function renderWordDiff(original, normalized){
+  const aw = original.split(/(\s+)/);
+  const bw = normalized.split(/(\s+)/);
+  const m = aw.length, n = bw.length;
+  const dp = Array.from({length:m+1},()=>new Array(n+1).fill(0));
+  for(let i=1;i<=m;i++) for(let j=1;j<=n;j++)
+    dp[i][j] = aw[i-1].toLowerCase()===bw[j-1].toLowerCase() ? dp[i-1][j-1]+1 : Math.max(dp[i-1][j],dp[i][j-1]);
+  const seq=[]; let i=m, j=n;
+  while(i>0||j>0){
+    if(i>0&&j>0&&aw[i-1].toLowerCase()===bw[j-1].toLowerCase()){seq.unshift({t:'same',v:bw[j-1]});i--;j--;}
+    else if(j>0&&(i===0||dp[i][j-1]>=dp[i-1][j])){seq.unshift({t:'add',v:bw[j-1]});j--;}
+    else{seq.unshift({t:'rem',v:aw[i-1]});i--;}
+  }
+  const el = document.getElementById('normalizeDiff');
+  el.innerHTML = '';
+  seq.forEach(d=>{
+    const span = document.createElement('span');
+    span.textContent = d.v;
+    if(d.t==='rem'){ span.style.cssText='background:#FDE8DF;color:#8B3A1E;text-decoration:line-through;border-radius:2px;padding:0 1px;'; }
+    if(d.t==='add'){ span.style.cssText='background:#DFF0EE;color:#1D5752;font-weight:600;border-radius:2px;padding:0 1px;'; }
+    el.appendChild(span);
+  });
+}
+
+let _lastNormalized = '';
+
+document.getElementById('normalizeBtn')?.addEventListener('click', async()=>{
+  const raw = document.getElementById('noteInput').value.trim();
+  if(!raw){ document.getElementById('normalizeStatus').textContent='Enter some text first.'; return; }
+  if(!PROXY_URL) return;
+
+  const btn = document.getElementById('normalizeBtn');
+  const statusEl = document.getElementById('normalizeStatus');
+  btn.disabled = true;
+  statusEl.textContent = 'Fixing dictation errors…';
+  document.getElementById('normalizeResultCard').style.display='none';
+
+  try{
+    const res = await fetch(PROXY_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({text: raw})
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error||`Error ${res.status}`);
+    _lastNormalized = data.normalized;
+    renderWordDiff(raw, data.normalized);
+    document.getElementById('normalizeResultCard').style.display='';
+    statusEl.textContent = '';
+  }catch(e){
+    statusEl.textContent = 'Error: '+e.message;
+  }finally{
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('applyNormalizedBtn')?.addEventListener('click', ()=>{
+  if(_lastNormalized){
+    document.getElementById('noteInput').value = _lastNormalized;
+    document.getElementById('normalizeResultCard').style.display='none';
+    // Auto-trigger analysis
+    document.getElementById('analyzeBtn').click();
+  }
+});
+
+document.getElementById('dismissNormalizeBtn')?.addEventListener('click', ()=>{
+  document.getElementById('normalizeResultCard').style.display='none';
 });
 
 // ---------- Storage (stub templates) ----------
@@ -2684,6 +2799,70 @@ document.getElementById('ngCopyCodesBtn').addEventListener('click', ()=>{
 ngRenderAll();
 // ---------- init ----------
 renderAll();
+
+// ---------- Tab 4 AI Normalize ----------
+if(PROXY_URL){
+  document.getElementById('ngFindingsNormalizeToolbar').style.display='';
+  document.getElementById('ngInterventionNormalizeToolbar').style.display='';
+}
+
+function buildDiffHtml(raw, normalized, diffElId){
+  const diffEl = document.getElementById(diffElId);
+  diffEl.innerHTML='';
+  diffEl.dataset.normalized = normalized;
+  const aw=raw.split(/(\s+)/), bw=normalized.split(/(\s+)/);
+  const m=aw.length,n=bw.length;
+  const dp=Array.from({length:m+1},()=>new Array(n+1).fill(0));
+  for(let i=1;i<=m;i++) for(let j=1;j<=n;j++) dp[i][j]=aw[i-1].toLowerCase()===bw[j-1].toLowerCase()?dp[i-1][j-1]+1:Math.max(dp[i-1][j],dp[i][j-1]);
+  const seq=[];let i=m,j=n;
+  while(i>0||j>0){
+    if(i>0&&j>0&&aw[i-1].toLowerCase()===bw[j-1].toLowerCase()){seq.unshift({t:'same',v:bw[j-1]});i--;j--;}
+    else if(j>0&&(i===0||dp[i][j-1]>=dp[i-1][j])){seq.unshift({t:'add',v:bw[j-1]});j--;}
+    else{seq.unshift({t:'rem',v:aw[i-1]});i--;}
+  }
+  seq.forEach(d=>{
+    const span=document.createElement('span');
+    span.textContent=d.v;
+    if(d.t==='rem') span.style.cssText='background:#FDE8DF;color:#8B3A1E;text-decoration:line-through;border-radius:2px;padding:0 1px;';
+    if(d.t==='add') span.style.cssText='background:#DFF0EE;color:#1D5752;font-weight:600;border-radius:2px;padding:0 1px;';
+    diffEl.appendChild(span);
+  });
+}
+
+async function runNormalize(inputId, diffId, resultCardId, statusId, btnId){
+  const raw = document.getElementById(inputId).value.trim();
+  if(!raw){ document.getElementById(statusId).textContent='Enter some text first.'; return; }
+  if(!PROXY_URL) return;
+  const btn=document.getElementById(btnId), statusEl=document.getElementById(statusId);
+  btn.disabled=true; statusEl.textContent='Fixing dictation errors…';
+  document.getElementById(resultCardId).style.display='none';
+  try{
+    const res=await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:raw})});
+    const data=await res.json();
+    if(!res.ok) throw new Error(data.error||'Error '+res.status);
+    buildDiffHtml(raw, data.normalized, diffId);
+    document.getElementById(resultCardId).style.display='';
+    statusEl.textContent='';
+  }catch(e){ statusEl.textContent='Error: '+e.message; }
+  finally{ btn.disabled=false; }
+}
+
+// Findings
+document.getElementById('ngFindingsNormalizeBtn')?.addEventListener('click',()=>runNormalize('ngFindingsInput','ngFindingsDiff','ngFindingsNormalizeResult','ngFindingsNormalizeStatus','ngFindingsNormalizeBtn'));
+document.getElementById('ngFindingsApplyBtn')?.addEventListener('click',()=>{
+  const norm=document.getElementById('ngFindingsDiff').dataset.normalized;
+  if(norm){document.getElementById('ngFindingsInput').value=norm;document.getElementById('ngFindingsInput').dispatchEvent(new Event('input'));document.getElementById('ngFindingsNormalizeResult').style.display='none';}
+});
+document.getElementById('ngFindingsDismissBtn')?.addEventListener('click',()=>document.getElementById('ngFindingsNormalizeResult').style.display='none');
+
+// Intervention
+document.getElementById('ngInterventionNormalizeBtn')?.addEventListener('click',()=>runNormalize('ngInterventionInput','ngInterventionDiff','ngInterventionNormalizeResult','ngInterventionNormalizeStatus','ngInterventionNormalizeBtn'));
+document.getElementById('ngInterventionApplyBtn')?.addEventListener('click',()=>{
+  const norm=document.getElementById('ngInterventionDiff').dataset.normalized;
+  if(norm){document.getElementById('ngInterventionInput').value=norm;document.getElementById('ngInterventionInput').dispatchEvent(new Event('input'));document.getElementById('ngInterventionNormalizeResult').style.display='none';}
+});
+document.getElementById('ngInterventionDismissBtn')?.addEventListener('click',()=>document.getElementById('ngInterventionNormalizeResult').style.display='none');
+
 </script>
 
 </body>
