@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Endovascular Op Note &amp; Coding Assistant</title>
 <style>
   :root{
@@ -41,6 +42,27 @@
   .panel.active{display:block;}
   .layout{display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start;}
   @media (max-width:980px){.layout{grid-template-columns:1fr;}}
+  @media (max-width:680px){
+    .shell{padding:14px 12px 80px;}
+    header.top h1{font-size:17px;}
+    header.top .tag{font-size:10px;}
+    .tab{font-size:12px; padding:8px 10px;}
+    .card{padding:12px 14px;}
+    .card h2{font-size:14px;}
+    textarea,input[type=text],input[type=time],select{font-size:16px !important;}
+    button{font-size:13px; padding:9px 13px;}
+    button.small{font-size:12px; padding:7px 11px;}
+    .hint{font-size:12px;}
+    label{font-size:12px;}
+    .chip{font-size:12px; padding:6px 12px;}
+    .vessel-block{padding:10px 12px;}
+    .code-item .code{font-size:13px;}
+    .code-item .desc{font-size:12px;}
+    .pending-item{font-size:13px;}
+    .flag-item{font-size:12px;}
+    .modgrid{grid-template-columns:1fr 1fr;}
+    .modgrid label.inline{font-size:13px;}
+  }
   .card{background:var(--card); border:1px solid var(--line); border-radius:3px; padding:18px 20px; margin-bottom:16px;}
   .card h2{font-family:var(--serif); font-size:15px; margin:0 0 12px; padding-bottom:8px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px;}
   .card h2 .n{display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; background:var(--ink); color:var(--paper); font-size:10px; font-family:var(--sans); font-weight:700;}
@@ -322,7 +344,7 @@ document.querySelectorAll('.tab').forEach(t=>{
 // Set this to your Cloudflare Worker URL after deploying worker.js
 // e.g. "https://endovascular-proxy.YOUR-USERNAME.workers.dev"
 // Leave as empty string to hide the normalize button entirely.
-const PROXY_URL = "https://endovascular-proxy.teeleeves1111.workers.dev/";
+const PROXY_URL = "";
 
 // Show normalize button only when proxy is configured
 if(PROXY_URL){
