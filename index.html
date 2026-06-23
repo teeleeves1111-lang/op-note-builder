@@ -513,7 +513,7 @@ function addVesselRow(prefill){
     id, territory:'femoropopliteal', vessel:'SFA/popliteal', lesion:'straightforward', lesionConfirmed:false,
     angioplasty:false, dcb:false, stent:false, stentType:'self-expanding', stentSize:'',
     atherectomy:false, atherType:'directional', lithotripsy:false, ivlSize:'',
-    balloonSize:'', result:'good angiographic result with no residual stenosis'
+    balloonSize:'', result:'good angiographic result with minimal residual stenosis'
   }, prefill||{}));
   renderVessels();
   renderAll();
@@ -873,7 +873,7 @@ function analyzeSegmentText(t){
   }
 
   // grab a short "result/findings" snippet if present
-  const resultMatch = t.match(/(good result|excellent result|no residual stenosis|brisk flow|widely patent|excellent angiographic result)[^.]*\./i);
+  const resultMatch = t.match(/(good result|excellent result|minimal residual stenosis|brisk flow|widely patent|excellent angiographic result)[^.]*\./i);
   if(resultMatch) out.result = resultMatch[0].trim();
 
   return out;
@@ -1772,7 +1772,7 @@ function parseShorthandLine(text){
     stent: base.stent || stents.length>0,
     stents,
     tpTrunkFlagged,
-    result: base.result === 'good result' ? 'good angiographic result with no residual stenosis' : base.result
+    result: base.result === 'good result' ? 'good angiographic result with minimal residual stenosis' : base.result
   };
 }
 
@@ -2618,7 +2618,7 @@ function ngBuildAccessSentences(){
   }
   return keys.map((k, i)=>{
     const site = ngAccessSiteLabel(k);
-    const usPhrase = (i===0 && usGuidance) ? ', with ultrasound guidance used to confirm vessel patency and real-time needle-entry visualization' : '';
+    const usPhrase = usGuidance ? ', with ultrasound guidance used to confirm vessel patency and real-time needle-entry visualization' : '';
     return `1% lidocaine was used to infiltrate the skin overlying the ${site} and the artery was accessed with a micropuncture needle${usPhrase}. The needle was seen entering the artery and the artery was found to be patent. An image was preserved for the permanent record. A 4 French introducer sheath was placed.`;
   }).join(' ');
 }
@@ -2672,7 +2672,7 @@ function ngBuildProcedurePerformedList(){
   const accessKeys = ngAccessOrderedKeys();
   if(accessKeys.length){
     accessKeys.forEach((k,i)=>{
-      items.push(`${ngSideLabel(ngAccessKeySide(k))} ${ngAccessKeyIsBrachial(k)?'brachial':'femoral'} access cannulation${(i===0 && usGuidance) ? ' with ultrasound guidance' : ''}`);
+      items.push(`${ngSideLabel(ngAccessKeySide(k))} ${ngAccessKeyIsBrachial(k)?'brachial':'femoral'} access cannulation${usGuidance ? ' with ultrasound guidance' : ''}`);
     });
   } else {
     items.push(`[Access site] cannulation${usGuidance ? ' with ultrasound guidance' : ''}`);
