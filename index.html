@@ -281,13 +281,7 @@
         <span class="chip" data-secondary-access="popliteal">Popliteal</span>
         <span class="chip" data-secondary-access="peroneal">Peroneal</span>
       </div>
-      <label>Closure <span id="ngClosureAutoNote" class="hint" style="display:none; text-transform:none; font-weight:400;">— brachial-only access defaults to manual pressure</span></label>
-      <div class="chiprow" id="ngClosureChips">
-        <span class="chip" data-closure="manual">Manual</span>
-        <span class="chip" data-closure="perclose">Perclose</span>
-        <span class="chip" data-closure="mynx">Mynx</span>
-        <span class="chip" data-closure="angioseal">Angio-Seal</span>
-      </div>
+      <div id="ngClosureSection"></div>
     </div>
 
     <div class="card" id="ngPendingCard" style="display:none; border-color:var(--pending);">
@@ -1923,7 +1917,7 @@ let ngSedationAnswered = false;
 let ngSedationMinutes = 0;
 let ngPrimaryAccess = new Set();     // subset of 'leftFemoral','rightFemoral','leftBrachial','rightBrachial'
 let ngSecondaryAccess = new Set();   // subset of 'pt','at','popliteal','peroneal' — bailout/retrograde access, auto-attached by lesion side
-let ngClosureMethod = null;          // null | 'manual' | 'perclose' | 'mynx' | 'angioseal' — manual answer; auto-forced to 'manual' for brachial-only access
+let ngClosureByAccess = {};          // accessKey -> 'manual'|'perclose'|'mynx'|'angioseal'
 let ngAortogramTierAnswer = null;    // null | true | false — manual answer for the "ask" tier (crossover or bilateral below-iliac treatment)
 
 function ngFindingsText(){ return document.getElementById('ngFindingsInput').value || ''; }
@@ -1988,16 +1982,51 @@ function ngApproachForSide(side){
 function ngIsClosureAutoManual(){
   return ngHasBrachialAccess() && !ngHasFemoralAccess();
 }
-function ngResolvedClosureMethod(){
-  if(ngIsClosureAutoManual()) return 'manual';
-  return ngClosureMethod;
+
+// Returns the resolved closure method for a single access key.
+// Brachial is always manual; femoral uses whatever the user picked.
+function ngClosureForKey(accessKey){
+  if(ngAccessKeyIsBrachial(accessKey)) return 'manual';
+  return ngClosureByAccess[accessKey] || null;
 }
+
 const NG_CLOSURE_TEXT = {
   manual: 'manual pressure',
   perclose: 'a Perclose closure device',
   mynx: 'a Mynx closure device',
   angioseal: 'an Angio-Seal closure device'
 };
+
+// Builds the closing sentence, handling per-site closure when left and right
+// femoral sheaths used different devices.
+function ngBuildClosingLine(){
+  const keys = ngAccessOrderedKeys();
+  const sheathesTerm = keys.length > 1 ? 'sheaths were' : 'sheath was';
+  if(!keys.length){
+    return `Guidewires and catheters were removed. The introducer sheath was withdrawn and hemostasis was achieved with [closure method]. The patient tolerated the procedure without incident.`;
+  }
+  // Group sites by their closure method to detect whether they're all the same
+  const byMethod = {};
+  keys.forEach(k=>{
+    const m = ngClosureForKey(k);
+    const label = ngAccessSiteLabel(k);
+    if(!byMethod[m]) byMethod[m] = [];
+    byMethod[m].push(label);
+  });
+  const methods = Object.keys(byMethod);
+  if(methods.length === 1){
+    // All sites same closure — simple sentence
+    const closureText = methods[0] !== 'null' && methods[0] ? NG_CLOSURE_TEXT[methods[0]] : '[closure method]';
+    return `Guidewires and catheters were removed. The introducer ${sheathesTerm} withdrawn and hemostasis was achieved with ${closureText}. The patient tolerated the procedure without incident.`;
+  }
+  // Different closures per site
+  const parts = methods.map(m=>{
+    const closureText = (m && m !== 'null') ? NG_CLOSURE_TEXT[m] : '[closure method]';
+    const sites = byMethod[m];
+    return `${sites.join(' and ')} hemostasis was achieved with ${closureText}`;
+  });
+  return `Guidewires and catheters were removed. The introducer ${sheathesTerm} withdrawn; ${parts.join(', and ')}. The patient tolerated the procedure without incident.`;
+}
 
 // Three-tier rule for whether an aortogram / leg angiogram is included and
 // whether it needs to be asked about:
@@ -2555,16 +2584,15 @@ function ngAccessOrderedKeys(){
 }
 function ngAccessKeySide(accessKey){ return accessKey.startsWith('left') ? 'left' : 'right'; }
 function ngAccessKeyIsBrachial(accessKey){ return /Brachial$/.test(accessKey); }
-function ngAccessKeySiteName(accessKey){ return ngAccessKeyIsBrachial(accessKey) ? 'brachial artery' : 'common femoral artery'; }
+function ngAccessKeySiteName(accessKey){ return ngAccessKeyIsBrachial(accessKey) ? 'brachial artery' : 'femoral artery'; }
 
-// "Left/Right femoral" marks which leg/groin was accessed, not the exact
-// vessel punctured — antegrade sticks sometimes land in the proximal SFA
-// rather than the CFA proper, so the note names the general access region
-// rather than asserting a specific vessel that may not match the chart.
+// Names the access region in the note — "femoral artery" rather than
+// "common femoral artery" because antegrade sticks often land in the
+// proximal SFA, and over-specifying the vessel can conflict with the chart.
 function ngAccessSiteLabel(accessKey){
   return ngAccessKeyIsBrachial(accessKey)
     ? `${ngSideLabel(ngAccessKeySide(accessKey)).toLowerCase()} brachial artery`
-    : `${ngSideLabel(ngAccessKeySide(accessKey)).toLowerCase()} common femoral artery`;
+    : `${ngSideLabel(ngAccessKeySide(accessKey)).toLowerCase()} femoral artery`;
 }
 
 function ngGetXuJustificationText(){
@@ -2590,14 +2618,8 @@ function ngBuildAccessSentences(){
   }
   return keys.map((k, i)=>{
     const site = ngAccessSiteLabel(k);
-    const isBrachial = ngAccessKeyIsBrachial(k);
-    const side = ngAccessKeySide(k);
-    const treatedSides = ngComputeSides();
-    const approachPhrase = isBrachial
-      ? ' in standard retrograde fashion'
-      : (treatedSides.includes(side) ? ' in antegrade fashion' : ' in standard retrograde fashion, for up-and-over crossover access');
     const usPhrase = (i===0 && usGuidance) ? ', with ultrasound guidance used to confirm vessel patency and real-time needle-entry visualization' : '';
-    return `1% lidocaine was used to infiltrate the skin overlying the ${site} and the artery was accessed${approachPhrase} with a micropuncture needle${usPhrase}. The needle was seen entering the artery and the artery was found to be patent. An image was preserved for the permanent record. A 4 French introducer sheath was placed.`;
+    return `1% lidocaine was used to infiltrate the skin overlying the ${site} and the artery was accessed with a micropuncture needle${usPhrase}. The needle was seen entering the artery and the artery was found to be patent. An image was preserved for the permanent record. A 4 French introducer sheath was placed.`;
   }).join(' ');
 }
 
@@ -2698,8 +2720,6 @@ function ngBuildProcedurePerformedList(){
 }
 
 function ngGenerateNoteText(){
-  const closureKey = ngResolvedClosureMethod();
-  const closure = closureKey ? NG_CLOSURE_TEXT[closureKey] : '[closure method]';
   const sides = ngComputeSides();
 
   const procedurePerformed = ngBuildProcedurePerformedList().map((s,i)=>`${i+1}.\t${s}`).join('\n');
@@ -2709,7 +2729,7 @@ function ngGenerateNoteText(){
     const text = ngBuildInterventionForSide(side);
     return text ? `${sides.length===2 ? ngSideLabel(side)+' leg: ' : ''}${text}` : '';
   }).filter(Boolean).join(' ');
-  const closingLine = `Guidewires and catheters were removed. The introducer sheath${ngAccessOrderedKeys().length>1 ? 's were' : ' was'} withdrawn and hemostasis was achieved with ${closure}. The patient tolerated the procedure without incident.`;
+  const closingLine = ngBuildClosingLine();
 
   return [
     'Post-op Diagnosis',
@@ -2900,6 +2920,46 @@ attachDictation('ngInterventionInput', 'ngInterventionDictateBtn', 'ngInterventi
 document.getElementById('ngFindingsInput').addEventListener('input', ngRenderAll);
 document.getElementById('ngInterventionInput').addEventListener('input', ngRenderAll);
 
+function ngRenderClosureSection(){
+  const el = document.getElementById('ngClosureSection');
+  if(!ngPrimaryAccess.size){ el.innerHTML = ''; return; }
+
+  if(ngIsClosureAutoManual()){
+    el.innerHTML = `<label>Closure</label><div class="hint" style="margin-top:4px;">Brachial-only access — manual pressure at arm puncture site.</div>`;
+    return;
+  }
+
+  const femoralKeys = [...ngPrimaryAccess].filter(k=>!ngAccessKeyIsBrachial(k));
+  const brachialKeys = [...ngPrimaryAccess].filter(k=>ngAccessKeyIsBrachial(k));
+  const CLOSURE_OPTIONS = [
+    {val:'manual', label:'Manual'},
+    {val:'perclose', label:'Perclose'},
+    {val:'mynx', label:'Mynx'},
+    {val:'angioseal', label:'Angio-Seal'}
+  ];
+
+  const rows = femoralKeys.map(k=>{
+    const sideLabel = ngSideLabel(ngAccessKeySide(k));
+    const current = ngClosureByAccess[k];
+    const chips = CLOSURE_OPTIONS.map(o=>`<span class="chip${current===o.val?' on':''}" data-closure-key="${k}" data-closure-val="${o.val}">${o.label}</span>`).join('');
+    return `<label>${sideLabel} femoral closure</label><div class="chiprow" style="margin-bottom:4px;">${chips}</div>`;
+  }).join('');
+
+  const brachialNote = brachialKeys.length
+    ? `<div class="hint" style="margin-top:4px;">Brachial site${brachialKeys.length>1?'s':''}: manual pressure (automatic).</div>`
+    : '';
+
+  el.innerHTML = rows + brachialNote;
+
+  el.querySelectorAll('[data-closure-key]').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      ngClosureByAccess[chip.dataset.closureKey] = chip.dataset.closureVal;
+      ngRenderClosureSection();
+      ngRenderAll();
+    });
+  });
+}
+
 function ngRenderAccessChips(){
   document.querySelectorAll('#ngPrimaryAccessChips [data-primary-access]').forEach(chip=>{
     chip.classList.toggle('on', ngPrimaryAccess.has(chip.dataset.primaryAccess));
@@ -2907,22 +2967,13 @@ function ngRenderAccessChips(){
   document.querySelectorAll('#ngSecondaryAccessChips [data-secondary-access]').forEach(chip=>{
     chip.classList.toggle('on', ngSecondaryAccess.has(chip.dataset.secondaryAccess));
   });
-  const autoManual = ngIsClosureAutoManual();
-  document.getElementById('ngClosureAutoNote').style.display = autoManual ? '' : 'none';
-  document.getElementById('ngClosureChips').style.display = autoManual ? 'none' : '';
-  document.querySelectorAll('#ngClosureChips [data-closure]').forEach(chip=>{
-    chip.classList.toggle('on', !autoManual && ngClosureMethod === chip.dataset.closure);
-  });
+  ngRenderClosureSection();
 }
 
 document.querySelectorAll('#ngPrimaryAccessChips [data-primary-access]').forEach(chip=>{
   chip.addEventListener('click', ()=>{
     const k = chip.dataset.primaryAccess;
     if(ngPrimaryAccess.has(k)) ngPrimaryAccess.delete(k); else ngPrimaryAccess.add(k);
-    // Brachial-only access forces closure to manual — clear any prior
-    // device pick so it doesn't linger unused if femoral access is later
-    // added back.
-    if(ngIsClosureAutoManual()) ngClosureMethod = null;
     ngRenderAccessChips();
     ngRenderAll();
   });
@@ -2931,14 +2982,6 @@ document.querySelectorAll('#ngSecondaryAccessChips [data-secondary-access]').for
   chip.addEventListener('click', ()=>{
     const k = chip.dataset.secondaryAccess;
     if(ngSecondaryAccess.has(k)) ngSecondaryAccess.delete(k); else ngSecondaryAccess.add(k);
-    ngRenderAccessChips();
-    ngRenderAll();
-  });
-});
-document.querySelectorAll('#ngClosureChips [data-closure]').forEach(chip=>{
-  chip.addEventListener('click', ()=>{
-    if(ngIsClosureAutoManual()) return; // closure question hidden/forced in this case
-    ngClosureMethod = chip.dataset.closure;
     ngRenderAccessChips();
     ngRenderAll();
   });
