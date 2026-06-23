@@ -783,6 +783,7 @@ function analyzeSegmentText(t){
   const low = t.toLowerCase();
   const out = {lesion:'straightforward', lesionConfirmed:false, angioplasty:false, dcb:false, stent:false,
     atherectomy:false, lithotripsy:false, balloonSize:'', stentSize:'', stentType:'self-expanding',
+    postDilType:'', postDilSize:'',
     result:'good result', bridgeWithPrevious:false, tpTrunkFlag:false};
 
   if(/tibioperoneal trunk|\btp trunk\b/.test(low)) out.tpTrunkFlag = true;
@@ -861,6 +862,21 @@ function analyzeSegmentText(t){
     out.balloonSize = otherSize || (out.stentSize && sizeMatches.length===1 ? '' : sizeMatches[0][0].replace(/\s+/g,''));
   }
   if(stentBrand) out.stentSize = (out.stentSize ? out.stentSize + ' ' : '') + stentBrand;
+
+  // Post-dilation detection — "post-dilated with a 7mm balloon" / "post-dilated with 7mm DCB"
+  // Only meaningful when a stent was also placed; captured here so the
+  // pending section can ask about it specifically for stented vessels.
+  if(out.stent){
+    const postDilM = /post[-\s]?dil(?:at(?:ed?|ing|ion))?(?:\s+with(?:\s+a?)?)?\s*([\d.]+\s*(?:x\s*[\d.]+)?\s*mm)/i.exec(t);
+    if(postDilM){
+      out.postDilSize = postDilM[1].replace(/\s+/g,'');
+      const postDilIdx = low.search(/post[-\s]?dil/);
+      const postCtx = low.slice(postDilIdx, postDilIdx+60);
+      if(/dcb|drug.coat/i.test(postCtx)) out.postDilType = 'dcb';
+      else if(/ivl|lithotripsy/i.test(postCtx)) out.postDilType = 'ivl';
+      else out.postDilType = 'angioplasty';
+    }
+  }
 
   // grab a short "result/findings" snippet if present
   const resultMatch = t.match(/(good result|excellent result|no residual stenosis|brisk flow|widely patent|excellent angiographic result)[^.]*\./i);
@@ -1901,6 +1917,7 @@ function ngHasTreatment(t){
 let ngExcludedKeys = new Set();   // "side|key" entries the user removed from a parse
 let ngManualLesion = {};          // "side|key" -> 'straightforward'|'complex'
 let ngManualStentSize = {};       // "side|key" -> "6x150mm" (overrides a missing stent size)
+let ngManualPostStent = {};       // compositeKey -> {type:'angioplasty'|'dcb'|'ivl'|'none', size:''}
 let ngUsGuidanceAnswer = null;    // null | true | false — manual answer when not detected in text
 let ngSedationAnswered = false;
 let ngSedationMinutes = 0;
@@ -2093,6 +2110,21 @@ function ngEffectiveStentSize(record, stentIdx){
   return s ? s.size : '';
 }
 
+// Post-dilation, with manual pending-answer override applied on top.
+// Returns null when unknown (pending question should be shown),
+// {type:'none', size:''} when the user confirmed no post-dilation,
+// or {type:'angioplasty'|'dcb'|'ivl', size:'Nmm'} when known.
+// Accepts either a full record ({compositeKey, treatment}) or a flattened
+// treatment segment (where treatment fields live on the object itself).
+function ngEffectivePostStent(record){
+  const ck = record.compositeKey;
+  if(ngManualPostStent[ck]) return ngManualPostStent[ck];
+  const t = record.treatment || record; // flattened segment or full treatment
+  if(!(t.stents && t.stents.length)) return null;
+  if(t.postDilType) return {type: t.postDilType, size: t.postDilSize || ''};
+  return null; // unknown — pending question will surface
+}
+
 // ---------- Rendering: parsed review list ----------
 function ngSummarizeRecord(r){
   const label = (ANATOMIC_BY_KEY[r.key]||{label:r.key}).label;
@@ -2161,6 +2193,24 @@ function ngRenderPending(){
           </div>`);
         }
       });
+      // Post-dilation question — shown when a stent was placed but post-dilation
+      // was not mentioned in the text and hasn't been answered yet.
+      if(r.treatment.stents.length && ngEffectivePostStent(r) === null){
+        const label = (ANATOMIC_BY_KEY[r.key]||{label:r.key}).label;
+        items.push(`<div class="pending-item">
+          <div class="ptext"><b>${ngSideLabel(r.side)} ${label} stent — post-dilation?</b></div>
+          <button data-ng-poststent-none="${r.compositeKey}">None</button>
+          <span style="display:inline-flex; align-items:center; gap:4px; margin-left:4px;">
+            <select data-ng-poststent-type-sel="${r.compositeKey}" style="display:inline-block; width:auto; padding:5px 8px; font-size:12.5px; border:1px solid var(--line); border-radius:3px;">
+              <option value="angioplasty">Balloon</option>
+              <option value="dcb">DCB</option>
+              <option value="ivl">IVL</option>
+            </select>
+            <input type="text" data-ng-poststent-size-input="${r.compositeKey}" placeholder="e.g. 7mm" style="width:75px; display:inline-block;">
+            <button data-ng-confirm-poststent="${r.compositeKey}">Save</button>
+          </span>
+        </div>`);
+      }
     }
     if(r.sideAmbiguous){
       const label = (ANATOMIC_BY_KEY[r.key]||{label:r.key}).label;
@@ -2212,6 +2262,21 @@ function ngRenderPending(){
   });
   list.querySelectorAll('[data-ng-us-guidance]').forEach(b=>{
     b.addEventListener('click', ()=>{ ngUsGuidanceAnswer = (b.dataset.ngUsGuidance === 'yes'); ngRenderAll(); });
+  });
+  // Post-dilation — "None" button saves immediately; type+size saves via "Save" button
+  list.querySelectorAll('[data-ng-poststent-none]').forEach(b=>{
+    b.addEventListener('click', ()=>{ ngManualPostStent[b.dataset.ngPoststentNone] = {type:'none', size:''}; ngRenderAll(); });
+  });
+  list.querySelectorAll('[data-ng-confirm-poststent]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const ck = b.dataset.ngConfirmPoststent;
+      const sel = list.querySelector(`[data-ng-poststent-type-sel="${ck}"]`);
+      const inp = list.querySelector(`[data-ng-poststent-size-input="${ck}"]`);
+      const type = sel ? sel.value : 'angioplasty';
+      const size = inp ? inp.value.trim() : '';
+      ngManualPostStent[ck] = {type, size};
+      ngRenderAll();
+    });
   });
   list.querySelectorAll('[data-ng-sedation-none]').forEach(b=>{
     b.addEventListener('click', ()=>{ ngSedationAnswered = true; ngSedationMinutes = 0; ngRenderAll(); });
@@ -2396,6 +2461,71 @@ function ngGroupTreatedSegments(segs){
   return groups;
 }
 
+// Builds the structured intervention paragraph for a vessel group where
+// at least one segment received a stent. Produces the standard sequence:
+//   1. Lead (traversal sentence)
+//   2. Pre-stent prep sentences (atherectomy, pre-dilation balloon, IVL, DCB)
+//   3. "Follow-up imaging revealed >30% residual stenosis, so a [stent] was
+//      deployed [and post-dilated with a Xmm balloon]."
+//   4. Final result sentence.
+// Post-dilation is either auto-detected from parsed text, answered via the
+// pending section, or omitted silently when type is 'none'.
+function ngBuildStentedGroup(lead, g){
+  // Pre-stent prep — derived from already-parsed flags on the treatment segments
+  const preSentences = [];
+  const hasAtherectomy = g.some(s=>s.atherectomy);
+  const hasIVL = g.some(s=>s.lithotripsy);
+  const hasDCB = g.some(s=>s.dcb);
+  const balloonSize = g.map(s=>s.balloonSize).find(b=>b); // pre-dilation balloon
+
+  if(hasAtherectomy){
+    if(balloonSize) preSentences.push(`Atherectomy was performed and the vessel was pre-dilated with a ${balloonSize} balloon.`);
+    else preSentences.push('Atherectomy was performed.');
+  } else if(hasIVL){
+    preSentences.push(`The vessel was pre-treated with a${balloonSize ? ' '+balloonSize : ''} intravascular lithotripsy (IVL) balloon.`);
+  } else if(hasDCB){
+    preSentences.push(`The vessel was pre-treated with a${balloonSize ? ' '+balloonSize : ''} drug-coated balloon.`);
+  } else if(balloonSize){
+    preSentences.push(`The vessel was pre-dilated with a ${balloonSize} balloon.`);
+  }
+
+  // Collect all stents across segments in this group
+  const allStents = [];
+  g.forEach(s=>{
+    (s.stents||[]).forEach((st, i)=>{
+      const size = ngEffectiveStentSize({compositeKey:s.compositeKey, treatment:s}, i);
+      allStents.push({type: st.type, size});
+    });
+  });
+
+  // Post-dilation — manual override first, then parsed, then unknown
+  const firstStentedSeg = g.find(s=>s.stents && s.stents.length);
+  const postStent = firstStentedSeg ? ngEffectivePostStent(firstStentedSeg) : null;
+
+  // Build the stent deployment clause
+  const stentDescriptions = allStents.map(st=>{
+    const typeLabel = st.type === 'covered' ? 'covered' : (st.type === 'balloon-expandable' ? 'balloon-expandable' : 'self-expanding');
+    const sizeStr = st.size ? st.size+' ' : '[__x__mm] ';
+    return `a ${sizeStr}${typeLabel} stent was deployed`;
+  });
+  let stentClause = stentDescriptions.length
+    ? ngCapFirst(stentDescriptions.join(' and '))
+    : '[stent details — to complete]';
+
+  // Append post-dilation if known and not "none"
+  if(postStent && postStent.type !== 'none'){
+    const postSize = postStent.size ? postStent.size+' ' : '';
+    const postLabel = postStent.type === 'dcb' ? 'drug-coated balloon' : (postStent.type === 'ivl' ? 'IVL balloon' : 'balloon');
+    stentClause += ` and post-dilated with a ${postSize}${postLabel}`;
+  }
+  // If postStent===null (pending), no annotation added here — pending will prompt
+
+  const stentIntro = preSentences.length ? 'Follow-up imaging revealed >30% residual stenosis, so ' : '';
+  const stentSentence = stentIntro + stentClause + '.';
+  const resultText = `Final imaging revealed ${g[g.length-1].result || 'a good result'}.`;
+  return [lead, ...preSentences, stentSentence, resultText].join(' ');
+}
+
 function ngBuildInterventionForSide(side){
   const groups = ngGroupTreatedSegments(ngTreatedSegmentsForSide(side));
   if(!groups.length) return '';
@@ -2405,6 +2535,11 @@ function ngBuildInterventionForSide(side){
     const lead = idx===0
       ? `The ${labelPhrase} was then traversed with a catheter and wire successfully.`
       : `Attention was then turned to the ${labelPhrase}, which was traversed with a catheter and wire successfully.`;
+
+    const hasStent = g.some(s=>s.stents && s.stents.length);
+    if(hasStent) return ngBuildStentedGroup(lead, g);
+
+    // Non-stented vessel — flat clause list
     let clauses = [];
     g.forEach(s=>{ clauses = clauses.concat(ngModalityClauses({treatment:s, compositeKey:s.compositeKey})); });
     clauses = [...new Set(clauses)];
