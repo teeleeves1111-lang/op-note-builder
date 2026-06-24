@@ -6,267 +6,347 @@
 <title>Endovascular Op Note &amp; Coding Assistant</title>
 <style>
   :root{
-    --paper:#F7F6F1;
-    --ink:#1A2238;
-    --ink-soft:#4A5170;
-    --line:#D9D6CB;
-    --accent:#2F6F6B;
-    --accent-soft:#E4EFEE;
-    --flag:#B5562C;
-    --flag-soft:#FBEAE0;
-    --pending:#B8860B;
-    --pending-soft:#FCF3D9;
-    --pending-ink:#7A5E0A;
+    --paper:#F2F1EC;
+    --ink:#141927;
+    --ink-soft:#52586E;
+    --line:#D4D1C7;
+    --accent:#1F5C58;
+    --accent-soft:#E6EFEE;
+    --accent-mid:#2D7A75;
+    --flag:#A84828;
+    --flag-soft:#FAEAE3;
+    --pending:#96700A;
+    --pending-soft:#FBF2D8;
+    --pending-ink:#6B4E07;
     --card:#FFFFFF;
-    --mono: 'SFMono-Regular', 'JetBrains Mono', Consolas, Menlo, monospace;
-    --serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
-    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif;
+    --shadow:0 1px 3px rgba(0,0,0,.07), 0 0 0 1px var(--line);
+    --mono:'SFMono-Regular','JetBrains Mono',Consolas,Menlo,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;
   }
   *{box-sizing:border-box;}
-  body{
-    margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans);
-    -webkit-font-smoothing:antialiased;
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;}
+  .shell{max-width:980px;margin:0 auto;padding:0 0 80px;}
+
+  /* ---- Header ---- */
+  header.top{
+    background:var(--ink);color:#fff;
+    padding:14px 24px;
+    display:flex;align-items:center;gap:12px;
+    margin-bottom:0;
   }
-  .shell{max-width:1180px; margin:0 auto; padding:28px 24px 80px;}
-  header.top{display:flex; align-items:baseline; justify-content:space-between; border-bottom:2px solid var(--ink); padding-bottom:14px; margin-bottom:18px;}
-  header.top h1{font-family:var(--serif); font-weight:600; font-size:23px; margin:0; letter-spacing:-0.01em;}
-  header.top .tag{font-size:12px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.08em;}
-  .tabs{display:flex; gap:6px; margin-bottom:20px; border-bottom:1px solid var(--line);}
+  header.top h1{
+    font-weight:700;font-size:17px;margin:0;letter-spacing:-.01em;color:#fff;
+  }
+  header.top .divider{width:1px;height:18px;background:rgba(255,255,255,.25);}
+  header.top .subtitle{font-size:12px;color:rgba(255,255,255,.55);letter-spacing:.02em;}
+
+  /* ---- Tabs ---- */
+  .tabs{
+    display:flex;gap:0;background:var(--ink);
+    border-bottom:1px solid var(--line);
+    padding:0 24px;
+  }
   .tab{
-    padding:10px 16px; cursor:pointer; font-size:13.5px; font-weight:600; color:var(--ink-soft);
-    border-bottom:2px solid transparent; user-select:none;
+    padding:10px 18px;cursor:pointer;font-size:13px;font-weight:600;
+    color:rgba(255,255,255,.5);border-bottom:2px solid transparent;user-select:none;
+    letter-spacing:.01em;
   }
-  .tab.active{color:var(--ink); border-bottom:2px solid var(--accent);}
-  .tab:hover{color:var(--ink);}
+  .tab.active{color:#fff;border-bottom:2px solid var(--accent-mid);}
+  .tab:hover{color:rgba(255,255,255,.85);}
+
+  /* ---- Content ---- */
+  .content-wrap{padding:20px 24px 0;}
   .panel{display:none;}
   .panel.active{display:block;}
-  .layout{display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start;}
-  @media (max-width:980px){.layout{grid-template-columns:1fr;}}
-  @media (max-width:680px){
-    .shell{padding:14px 12px 80px;}
-    header.top h1{font-size:17px;}
-    header.top .tag{font-size:10px;}
-    .tab{font-size:12px; padding:8px 10px;}
-    .card{padding:12px 14px;}
-    .card h2{font-size:14px;}
-    textarea,input[type=text],input[type=time],select{font-size:16px !important;}
-    button{font-size:13px; padding:9px 13px;}
-    button.small{font-size:12px; padding:7px 11px;}
-    .hint{font-size:12px;}
-    label{font-size:12px;}
-    .chip{font-size:12px; padding:6px 12px;}
-    .vessel-block{padding:10px 12px;}
-    .code-item .code{font-size:13px;}
-    .code-item .desc{font-size:12px;}
-    .pending-item{font-size:13px;}
-    .flag-item{font-size:12px;}
-    .modgrid{grid-template-columns:1fr 1fr;}
-    .modgrid label.inline{font-size:13px;}
+
+  /* ---- Proc selector bar ---- */
+  .proc-bar{
+    display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;
+    gap:12px;margin-bottom:16px;
   }
-  .card{background:var(--card); border:1px solid var(--line); border-radius:3px; padding:18px 20px; margin-bottom:16px;}
-  .card h2{font-family:var(--serif); font-size:15px; margin:0 0 12px; padding-bottom:8px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px;}
-  .card h2 .n{display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; background:var(--ink); color:var(--paper); font-size:10px; font-family:var(--sans); font-weight:700;}
-  label{display:block; font-size:11.5px; font-weight:600; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em; margin:10px 0 4px;}
+  .proc-bar-left{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .billing-toggle{
+    display:flex;border:1px solid var(--line);border-radius:4px;overflow:hidden;
+    background:#fff;
+  }
+  .billing-toggle button{
+    border:none;border-radius:0;background:transparent;color:var(--ink-soft);
+    padding:5px 14px;font-size:12px;font-weight:600;cursor:pointer;
+  }
+  .billing-toggle button.active{background:var(--ink);color:#fff;}
+
+  /* ---- Cards ---- */
+  .card{
+    background:var(--card);box-shadow:var(--shadow);
+    border-radius:5px;padding:16px 20px;margin-bottom:14px;
+  }
+  .card h2{
+    font-size:14px;font-weight:700;margin:0 0 12px;padding-bottom:10px;
+    border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;
+    letter-spacing:-.01em;
+  }
+  .card h2 .n{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:20px;height:20px;border-radius:50%;
+    background:var(--ink);color:#fff;font-size:10px;font-weight:800;flex-shrink:0;
+  }
+  .badge{
+    font-size:10.5px;font-weight:700;color:var(--accent);background:var(--accent-soft);
+    padding:2px 8px;border-radius:10px;margin-left:4px;letter-spacing:.02em;
+    text-transform:uppercase;
+  }
+
+  /* ---- Form elements ---- */
+  label{display:block;font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;margin:10px 0 4px;}
   label:first-child{margin-top:0;}
-  input[type=text], input[type=number], select, textarea{
-    width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:3px; font-size:13.5px;
-    font-family:var(--sans); background:#fff; color:var(--ink);
+  input[type=text],input[type=number],select,textarea{
+    width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:4px;
+    font-size:13.5px;font-family:var(--sans);background:#fff;color:var(--ink);
   }
-  textarea{resize:vertical; line-height:1.45;}
-  .row{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
-  .row3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;}
-  .chiprow{display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;}
+  input[type=text]:focus,input[type=number]:focus,select:focus,textarea:focus{
+    outline:none;border-color:var(--accent-mid);box-shadow:0 0 0 2px rgba(45,122,117,.15);
+  }
+  textarea{resize:vertical;line-height:1.5;}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+
+  /* ---- Chips ---- */
+  .chiprow{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
   .chip{
-    border:1px solid var(--line); background:#fff; border-radius:14px; padding:4px 11px; font-size:12px;
-    cursor:pointer; color:var(--ink-soft); user-select:none;
+    border:1px solid var(--line);background:#fff;border-radius:20px;
+    padding:5px 13px;font-size:12px;cursor:pointer;color:var(--ink-soft);user-select:none;
+    font-weight:500;transition:border-color .12s,color .12s,background .12s;
   }
-  .chip:hover{border-color:var(--accent); color:var(--accent);}
-  .chip.on{background:var(--accent); color:#fff; border-color:var(--accent);}
-  .hint{font-size:11.5px; color:var(--ink-soft); margin-top:4px; line-height:1.4;}
+  .chip:hover{border-color:var(--accent-mid);color:var(--accent);}
+  .chip.on{background:var(--ink);color:#fff;border-color:var(--ink);}
+
+  /* ---- Proc type chips (slightly larger) ---- */
+  .proc-chip{
+    border:1px solid var(--line);background:#fff;border-radius:4px;
+    padding:6px 14px;font-size:12.5px;cursor:pointer;color:var(--ink-soft);
+    user-select:none;font-weight:600;
+  }
+  .proc-chip:hover{border-color:var(--accent-mid);color:var(--accent);}
+  .proc-chip.on{background:var(--ink);color:#fff;border-color:var(--ink);}
+
+  /* ---- Hint ---- */
+  .hint{font-size:11.5px;color:var(--ink-soft);margin-top:4px;line-height:1.4;}
+
+  /* ---- Buttons ---- */
   button{
-    font-family:var(--sans); font-weight:600; font-size:12.5px; cursor:pointer; border-radius:3px;
-    padding:9px 14px; border:1px solid var(--ink); background:var(--ink); color:#fff;
+    font-family:var(--sans);font-weight:700;font-size:13px;cursor:pointer;
+    border-radius:4px;padding:9px 16px;border:1px solid var(--ink);
+    background:var(--ink);color:#fff;letter-spacing:-.01em;
   }
-  button.secondary{background:#fff; color:var(--ink); border:1px solid var(--line);}
-  button.secondary:hover{border-color:var(--ink);}
-  button.small{padding:5px 10px; font-size:11.5px;}
-  button.danger{background:#fff; color:var(--flag); border:1px solid var(--flag);}
-  button.listening{background:var(--flag); border-color:var(--flag); color:#fff; animation:dictatePulse 1.3s ease-in-out infinite;}
-  @keyframes dictatePulse{0%{opacity:1;}50%{opacity:.62;}100%{opacity:1;}}
-  .vessel-block{border:1px solid var(--line); border-radius:3px; padding:14px; margin-bottom:12px; background:#FCFBF8; position:relative;}
-  .vessel-block .vhead{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
-  .vessel-block .vhead .vtitle{font-weight:700; font-size:13px;}
-  .modgrid{display:flex; flex-wrap:wrap; gap:14px; margin-top:6px;}
-  .modgrid label.inline{display:flex; align-items:center; gap:6px; text-transform:none; font-weight:500; font-size:12.5px; color:var(--ink); margin:0;}
-  .modgrid input[type=checkbox]{width:14px; height:14px;}
-  .sizefield{margin-top:6px;}
+  button:hover{background:#2A3450;}
+  button.secondary{background:#fff;color:var(--ink);border:1px solid var(--line);}
+  button.secondary:hover{border-color:var(--ink-soft);}
+  button.small{padding:5px 11px;font-size:11.5px;}
+  button.danger{background:#fff;color:var(--flag);border:1px solid var(--flag);}
+  button.listening{background:var(--flag);border-color:var(--flag);color:#fff;animation:dictatePulse 1.3s ease-in-out infinite;}
+  @keyframes dictatePulse{0%{opacity:1;}50%{opacity:.6;}100%{opacity:1;}}
+
+  /* ---- Vessel blocks ---- */
+  .vessel-block{border:1px solid var(--line);border-radius:4px;padding:14px;margin-bottom:10px;background:#FAFAF8;}
+  .vessel-block .vhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+  .vessel-block .vhead .vtitle{font-weight:700;font-size:13px;}
+  .modgrid{display:flex;flex-wrap:wrap;gap:12px;margin-top:6px;}
+  .modgrid label.inline{display:flex;align-items:center;gap:6px;text-transform:none;font-weight:500;font-size:12.5px;color:var(--ink);margin:0;}
+  .modgrid input[type=checkbox]{width:14px;height:14px;accent-color:var(--accent);}
+  .sizefield{margin-top:8px;}
+
+  /* ---- Note output ---- */
   .note-output{
-    white-space:pre-wrap; font-family:var(--mono); font-size:12.3px; line-height:1.55; background:#FCFBF7;
-    border:1px solid var(--line); padding:14px; border-radius:3px; max-height:560px; overflow-y:auto;
+    white-space:pre-wrap;font-family:var(--mono);font-size:12px;line-height:1.6;
+    background:#FAFAF7;border:1px solid var(--line);padding:14px;border-radius:4px;
+    max-height:520px;overflow-y:auto;
   }
-  .code-list{display:flex; flex-direction:column; gap:6px;}
-  .code-item{display:flex; align-items:flex-start; gap:10px; padding:8px 10px; background:var(--accent-soft); border-radius:3px; border-left:3px solid var(--accent);}
-  .code-item .code{font-family:var(--mono); font-weight:700; font-size:13px; min-width:60px;}
-  .code-item .desc{font-size:12px; color:var(--ink-soft); line-height:1.4;}
-  .flag-item{display:flex; gap:10px; padding:8px 10px; background:var(--flag-soft); border-radius:3px; border-left:3px solid var(--flag); font-size:12px; color:#7A3A1D; line-height:1.4;}
+
+  /* ---- Code list ---- */
+  .code-list{display:flex;flex-direction:column;gap:5px;}
+  .code-item{
+    display:flex;align-items:flex-start;gap:10px;padding:8px 12px;
+    background:var(--accent-soft);border-radius:4px;border-left:3px solid var(--accent);
+  }
+  .code-item .code{font-family:var(--mono);font-weight:800;font-size:13px;min-width:80px;color:var(--accent);}
+  .code-item .desc{font-size:12px;color:var(--ink-soft);line-height:1.4;}
+
+  /* ---- Flags / pending ---- */
+  .flag-item{
+    display:flex;gap:10px;padding:8px 12px;background:var(--flag-soft);
+    border-radius:4px;border-left:3px solid var(--flag);font-size:12px;color:#7A2E10;line-height:1.4;
+  }
   .flag-item b{color:var(--flag);}
-  .pending-item{display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:10px 12px; background:var(--pending-soft); border-radius:3px; border-left:3px solid var(--pending); font-size:12.5px; color:var(--pending-ink); line-height:1.4;}
-  .pending-item .ptext{flex:1; min-width:160px;}
-  .pending-item button{background:#fff; color:var(--pending-ink); border:1px solid var(--pending); padding:5px 10px; font-size:11.5px;}
-  .pending-item button:hover{background:var(--pending); color:#fff;}
-  .pending-item input[type=number]{width:90px; display:inline-block; padding:5px 8px;}
-  .toolbar{display:flex; gap:8px; margin-top:10px;}
-  .stub{padding:40px 20px; text-align:center; color:var(--ink-soft);}
-  .stub textarea{margin-top:14px; min-height:180px;}
-  .footer-note{font-size:11px; color:var(--ink-soft); margin-top:24px; line-height:1.5; border-top:1px solid var(--line); padding-top:12px;}
-  .savebadge{font-size:11px; color:var(--accent); opacity:0; transition:opacity .3s;}
+  .pending-item{
+    display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px;
+    background:var(--pending-soft);border-radius:4px;border-left:3px solid var(--pending);
+    font-size:12.5px;color:var(--pending-ink);line-height:1.4;
+  }
+  .pending-item .ptext{flex:1;min-width:160px;}
+  .pending-item button{background:#fff;color:var(--pending-ink);border:1px solid var(--pending);padding:5px 10px;font-size:11.5px;}
+  .pending-item button:hover{background:var(--pending);color:#fff;}
+  .pending-item input[type=number]{width:90px;display:inline-block;padding:5px 8px;}
+
+  /* ---- Toolbar ---- */
+  .toolbar{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+
+  /* ---- AI correction card ---- */
+  .ai-result-card{
+    margin-top:10px;background:#F2FAF9;border:1px solid #B0D4D1;border-radius:4px;padding:10px 14px;
+  }
+  .ai-result-card .ai-label{font-size:10.5px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;}
+  .ai-result-card .diff-wrap{font-family:var(--mono);font-size:12px;line-height:1.7;white-space:pre-wrap;word-break:break-word;margin-bottom:8px;}
+
+  /* ---- savebadge (unused now but keep for storage) ---- */
+  .savebadge{font-size:11px;color:var(--accent);opacity:0;transition:opacity .3s;}
   .savebadge.show{opacity:1;}
+
+  /* ---- Mobile ---- */
+  @media(max-width:680px){
+    .content-wrap{padding:14px 14px 0;}
+    header.top{padding:12px 14px;}
+    header.top h1{font-size:15px;}
+    header.top .subtitle{display:none;}
+    .tabs{padding:0 14px;}
+    .tab{font-size:12px;padding:9px 12px;}
+    .card{padding:12px 14px;}
+    .card h2{font-size:13.5px;}
+    textarea,input[type=text],input[type=time],select{font-size:16px!important;}
+    button{font-size:13px;padding:9px 13px;}
+    button.small{font-size:12px;padding:7px 10px;}
+    .hint{font-size:11.5px;}
+    label{font-size:11px;}
+    .chip{font-size:11.5px;padding:5px 11px;}
+    .vessel-block{padding:10px 12px;}
+    .code-item .code{font-size:12.5px;}
+    .code-item .desc{font-size:11.5px;}
+    .pending-item{font-size:12.5px;}
+    .flag-item{font-size:11.5px;}
+    .row{grid-template-columns:1fr;}
+    .row3{grid-template-columns:1fr 1fr;}
+    .proc-bar{gap:8px;}
+  }
 </style>
 </head>
 <body>
 <div class="shell">
 
   <header class="top">
-    <h1>Endovascular Op Note &amp; Coding Assistant</h1>
-    <div class="tag">Fixed templates · no PHI fields · code logic runs locally · voice input is optional &amp; cloud-based</div>
+    <h1>Endovascular Coding</h1>
+    <div class="divider"></div>
+    <div class="subtitle">No PHI · runs locally · draft only — physician review required</div>
   </header>
 
   <div class="tabs">
-    <div class="tab active" data-tab="angio">Angiogram / Intervention</div>
-    <div class="tab" data-tab="fistula">Fistulogram</div>
-    <div class="tab" data-tab="venogram">Venogram / Venous Stent</div>
-    <div class="tab" data-tab="notegen">Generate Op Note</div>
+    <div class="tab active" data-tab="coding">Endovascular Coding</div>
+    <div class="tab" data-tab="notegen">Generate LE Angio Note</div>
   </div>
 
-  <!-- ===================== ANGIOGRAM / INTERVENTION ===================== -->
+  <div class="content-wrap">
 
-  <div class="panel active" id="panel-angio">
-    <div class="card">
-      <h2><span class="n">1</span>What was done? <span style="font-weight:400; color:var(--ink-soft); font-size:11.5px; text-transform:none;">— type shorthand, paste a note, or dictate using your phone's keyboard microphone</span></h2>
-      <textarea id="noteInput" rows="9" placeholder="Type shorthand:  right SFA stent, popliteal atherectomy, AT angioplasty&#10;Paste a note:  paste full op note text here&#10;Or tap the microphone on your iPhone keyboard and dictate — garbled words get fixed by AI before parsing"></textarea>
+  <!-- ===================== ENDOVASCULAR CODING ===================== -->
 
-      <div class="toolbar" style="margin-top:8px;">
-        <button id="dictateBtn" type="button" class="secondary small">🎤 Dictate</button>
-        <span class="hint" id="dictateStatus"></span>
+  <div class="panel active" id="panel-coding">
+
+    <!-- Proc selector + billing toggle -->
+    <div class="proc-bar">
+      <div class="proc-bar-left">
+        <div class="proc-chip on" data-proc="le">Lower Extremity</div>
+        <div class="proc-chip" data-proc="fistula">Fistulogram</div>
+        <div class="proc-chip" data-proc="venous">Venous</div>
+        <div class="proc-chip" data-proc="renal">Renal / Visceral</div>
       </div>
-      <div class="hint" id="dictateCaveat">Voice input: tap the microphone key on your iPhone keyboard and dictate naturally. On desktop, use the 🎤 button above (Chrome/Edge only). Garbled words are corrected by AI before parsing.</div>
+      <div class="billing-toggle">
+        <button id="billingPro" class="active" type="button">Pro</button>
+        <button id="billingFac" type="button">Facility</button>
+      </div>
+    </div>
 
-      <!-- AI normalize button — only visible when PROXY_URL is configured -->
-      <div class="toolbar" id="normalizeToolbar" style="margin-top:6px; display:none;">
+    <!-- Input card -->
+    <div class="card">
+      <h2><span class="n">1</span>What was done?</h2>
+      <textarea id="noteInput" rows="7"
+        placeholder="Tap here · type, paste, or use your phone's mic&#10;e.g. right SFA stent, popliteal atherectomy, AT angioplasty, 20 min sedation"></textarea>
+      <div class="toolbar" id="normalizeToolbar" style="display:none;">
         <button id="normalizeBtn" class="secondary small" type="button">✨ Fix dictation errors (AI)</button>
         <span class="hint" id="normalizeStatus"></span>
       </div>
-      <div id="normalizeResultCard" style="display:none; margin-top:10px; background:#F4FAF9; border:1px solid #B2D4D2; border-radius:3px; padding:10px 12px;">
-        <div style="font-size:11px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px;">AI corrections — <span style="font-weight:400; text-transform:none;">changes highlighted · edit if needed</span></div>
-        <div id="normalizeDiff" style="font-family:var(--mono); font-size:12px; line-height:1.7; white-space:pre-wrap; word-break:break-word; margin-bottom:8px;"></div>
-        <button id="applyNormalizedBtn" class="secondary small" type="button">Apply corrected text → parse</button>
+      <div id="normalizeResultCard" class="ai-result-card" style="display:none;">
+        <div class="ai-label">AI corrections — <span style="font-weight:500;text-transform:none;">changes highlighted · edit if needed</span></div>
+        <div class="diff-wrap" id="normalizeDiff"></div>
+        <button id="applyNormalizedBtn" class="secondary small" type="button">Apply &amp; parse</button>
         <button id="dismissNormalizeBtn" class="secondary small" type="button" style="margin-left:6px;">Dismiss</button>
       </div>
-
-      <div class="hint" style="margin-top:8px;">Aortogram/leg-angiogram (75625 / 75710 / 75716), ultrasound guidance, and bridging-lesion vessels are detected automatically — anything ambiguous will prompt you to confirm before its code generates.</div>
       <div class="toolbar">
         <button id="analyzeBtn">Analyze &amp; suggest codes</button>
-        <button id="newPatientBtn" class="secondary small" type="button">↺ New patient / start over</button>
+        <button id="newPatientBtn" class="secondary small" type="button">↺ New patient</button>
         <span class="hint" id="parseResult"></span>
       </div>
     </div>
 
-    <div class="card">
-      <h2><span class="n">2</span>Vessels identified <span style="font-weight:400; color:var(--ink-soft); font-size:11.5px; text-transform:none;">— edit/correct before trusting the codes</span></h2>
+    <!-- LE: Vessels identified (only shown for Lower Extremity) -->
+    <div class="card" id="leVesselCard">
+      <h2><span class="n">2</span>Vessels identified <span style="font-weight:400;color:var(--ink-soft);font-size:11px;">— edit/correct before trusting codes</span></h2>
       <div id="vesselList"></div>
       <button id="addVesselBtn" class="secondary small">+ Add vessel manually</button>
     </div>
 
-    <div class="card" id="pendingCard" style="display:none; border-color:var(--pending);">
-      <h2 style="color:var(--pending-ink);">⏳ Needs your input before these codes finalize</h2>
-      <div id="pendingList" style="display:flex; flex-direction:column; gap:8px;"></div>
+    <!-- Pending questions (all proc types) -->
+    <div class="card" id="pendingCard" style="display:none;border-color:var(--pending);">
+      <h2 style="color:var(--pending-ink);">⏳ Needs your input before codes finalize</h2>
+      <div id="pendingList" style="display:flex;flex-direction:column;gap:8px;"></div>
     </div>
 
+    <!-- Suggested codes -->
     <div class="card">
-      <h2>Suggested CPT codes</h2>
+      <h2>Suggested CPT codes <span class="badge" id="billingBadge">PRO</span></h2>
       <div class="code-list" id="codeOut"></div>
-      <div id="flagOut" style="margin-top:8px; display:flex; flex-direction:column; gap:6px;"></div>
+      <div id="flagOut" style="margin-top:8px;display:flex;flex-direction:column;gap:5px;"></div>
       <div class="toolbar">
         <button id="copyCodesBtn" class="secondary small">Copy code list</button>
       </div>
     </div>
+
   </div>
 
-  <!-- ===================== FISTULOGRAM (stub) ===================== -->
-
-  <div class="panel" id="panel-fistula">
-    <div class="card">
-      <div class="stub">
-        <div style="font-family:var(--serif); font-size:16px; color:var(--ink);">Fistulogram module not built yet</div>
-        <div class="hint">Paste your Epic SmartPhrase body for fistulograms below and I'll build this tab to match it next, the same way I built the angiogram/intervention tab from your template.</div>
-        <textarea id="fistulaTemplate" placeholder="Paste your fistulogram SmartPhrase body here..."></textarea>
-        <div class="toolbar" style="justify-content:center;">
-          <button id="saveFistulaBtn" class="secondary small">Save template</button>
-          <span class="savebadge" id="fistulaSaved">Saved</span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ===================== VENOGRAM (stub) ===================== -->
-
-  <div class="panel" id="panel-venogram">
-    <div class="card">
-      <div class="stub">
-        <div style="font-family:var(--serif); font-size:16px; color:var(--ink);">Venogram / venous stent module not built yet</div>
-        <div class="hint">Paste your Epic SmartPhrase body for venograms/venous stenting below and I'll build this tab next.</div>
-        <textarea id="venoTemplate" placeholder="Paste your venogram SmartPhrase body here..."></textarea>
-        <div class="toolbar" style="justify-content:center;">
-          <button id="saveVenoBtn" class="secondary small">Save template</button>
-          <span class="savebadge" id="venoSaved">Saved</span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ===================== GENERATE OP NOTE ===================== -->
+  <!-- ===================== GENERATE LE ANGIO NOTE ===================== -->
 
   <div class="panel" id="panel-notegen">
+
     <div class="card">
-      <h2><span class="n">1</span>Angiographic findings <span style="font-weight:400; color:var(--ink-soft); font-size:11.5px; text-transform:none;">— describe what you saw, fast. Anything you don't mention defaults to patent. Mention "right"/"left" per vessel and it's picked up automatically.</span></h2>
-      <textarea id="ngFindingsInput" rows="4" placeholder="e.g. right SFA 70% stenosis, popliteal occluded, peroneal 50% stenosis, rest patent"></textarea>
-      <div class="toolbar" style="margin-top:6px;">
-        <button id="ngFindingsDictateBtn" type="button" class="secondary small">🎤 Dictate</button>
-        <span class="hint" id="ngFindingsDictateStatus"></span>
-      </div>
-      <div class="toolbar" id="ngFindingsNormalizeToolbar" style="display:none; margin-top:4px;">
-        <button id="ngFindingsNormalizeBtn" type="button" class="secondary small">&#10024; Fix dictation errors (AI)</button>
+      <h2><span class="n">1</span>Angiographic findings <span style="font-weight:400;color:var(--ink-soft);font-size:11px;">— anything not mentioned defaults to patent</span></h2>
+      <textarea id="ngFindingsInput" rows="4"
+        placeholder="e.g. right SFA 70% stenosis, popliteal occluded, peroneal 50% stenosis, rest patent"></textarea>
+      <div class="toolbar" id="ngFindingsNormalizeToolbar" style="display:none;">
+        <button id="ngFindingsNormalizeBtn" type="button" class="secondary small">✨ Fix dictation errors (AI)</button>
         <span class="hint" id="ngFindingsNormalizeStatus"></span>
       </div>
-      <div id="ngFindingsNormalizeResult" style="display:none; margin-top:8px; background:#F4FAF9; border:1px solid #B2D4D2; border-radius:3px; padding:10px 12px;">
-        <div style="font-size:11px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px;">AI corrections <span style="font-weight:400; text-transform:none;">&#8212; edit if needed</span></div>
-        <div id="ngFindingsDiff" style="font-family:var(--mono); font-size:12px; line-height:1.7; white-space:pre-wrap; word-break:break-word; margin-bottom:7px;"></div>
+      <div id="ngFindingsNormalizeResult" class="ai-result-card" style="display:none;">
+        <div class="ai-label">AI corrections — <span style="font-weight:500;text-transform:none;">edit if needed</span></div>
+        <div class="diff-wrap" id="ngFindingsDiff"></div>
         <button id="ngFindingsApplyBtn" type="button" class="secondary small">Apply &amp; re-parse</button>
         <button id="ngFindingsDismissBtn" type="button" class="secondary small" style="margin-left:6px;">Dismiss</button>
       </div>
     </div>
 
     <div class="card">
-      <h2><span class="n">2</span>Intervention <span style="font-weight:400; color:var(--ink-soft); font-size:11.5px; text-transform:none;">— only what was actually treated. A vessel here gets an Intervention paragraph and a Procedure Performed line; a vessel that's only in Findings above doesn't.</span></h2>
-      <textarea id="ngInterventionInput" rows="4" placeholder="e.g. right SFA stented with 6mm x 150mm SE stent, popliteal angioplasty with 5mm balloon"></textarea>
-      <div class="toolbar" style="margin-top:6px;">
-        <button id="ngInterventionDictateBtn" type="button" class="secondary small">🎤 Dictate</button>
-        <span class="hint" id="ngInterventionDictateStatus"></span>
-      </div>
-      <div class="toolbar" id="ngInterventionNormalizeToolbar" style="display:none; margin-top:4px;">
-        <button id="ngInterventionNormalizeBtn" type="button" class="secondary small">&#10024; Fix dictation errors (AI)</button>
+      <h2><span class="n">2</span>Intervention <span style="font-weight:400;color:var(--ink-soft);font-size:11px;">— treated vessels only; each gets a Procedure Performed line</span></h2>
+      <textarea id="ngInterventionInput" rows="4"
+        placeholder="e.g. right SFA stented with 6mm x 150mm SE stent, popliteal angioplasty with 5mm balloon"></textarea>
+      <div class="toolbar" id="ngInterventionNormalizeToolbar" style="display:none;">
+        <button id="ngInterventionNormalizeBtn" type="button" class="secondary small">✨ Fix dictation errors (AI)</button>
         <span class="hint" id="ngInterventionNormalizeStatus"></span>
       </div>
-      <div id="ngInterventionNormalizeResult" style="display:none; margin-top:8px; background:#F4FAF9; border:1px solid #B2D4D2; border-radius:3px; padding:10px 12px;">
-        <div style="font-size:11px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px;">AI corrections <span style="font-weight:400; text-transform:none;">&#8212; edit if needed</span></div>
-        <div id="ngInterventionDiff" style="font-family:var(--mono); font-size:12px; line-height:1.7; white-space:pre-wrap; word-break:break-word; margin-bottom:7px;"></div>
+      <div id="ngInterventionNormalizeResult" class="ai-result-card" style="display:none;">
+        <div class="ai-label">AI corrections — <span style="font-weight:500;text-transform:none;">edit if needed</span></div>
+        <div class="diff-wrap" id="ngInterventionDiff"></div>
         <button id="ngInterventionApplyBtn" type="button" class="secondary small">Apply &amp; re-parse</button>
         <button id="ngInterventionDismissBtn" type="button" class="secondary small" style="margin-left:6px;">Dismiss</button>
       </div>
     </div>
 
     <div class="card">
-      <h2><span class="n">3</span>Access <span style="font-weight:400; color:var(--ink-soft); font-size:11.5px; text-transform:none;">— select all that were used. Antegrade/retrograde, closure default, and aortogram inclusion are all derived from this plus the treated side(s) above — nothing else to fill in.</span></h2>
+      <h2><span class="n">3</span>Access <span style="font-weight:400;color:var(--ink-soft);font-size:11px;">— access site, closure, and aortogram derived automatically</span></h2>
       <label>Primary access</label>
       <div class="chiprow" id="ngPrimaryAccessChips">
         <span class="chip" data-primary-access="leftFemoral">Left femoral</span>
@@ -274,33 +354,34 @@
         <span class="chip" data-primary-access="leftBrachial">Left brachial</span>
         <span class="chip" data-primary-access="rightBrachial">Right brachial</span>
       </div>
-      <label>Secondary / bailout access <span style="font-weight:400; text-transform:none;">— retrograde pedal/tibial access; auto-attached to whichever leg has the lesion that needed it, no side click required</span></label>
+      <label>Secondary / bailout access</label>
       <div class="chiprow" id="ngSecondaryAccessChips">
         <span class="chip" data-secondary-access="pt">PT</span>
         <span class="chip" data-secondary-access="at">AT</span>
         <span class="chip" data-secondary-access="popliteal">Popliteal</span>
         <span class="chip" data-secondary-access="peroneal">Peroneal</span>
       </div>
-      <div id="ngClosureSection"></div>
+      <!-- Per-site closure pickers rendered dynamically by ngRenderClosurePickers() -->
+      <div id="ngClosureContainer"></div>
     </div>
 
-    <div class="card" id="ngPendingCard" style="display:none; border-color:var(--pending);">
-      <h2 style="color:var(--pending-ink);">⏳ Needs your input <span style="font-weight:400; color:var(--ink-soft); font-size:11.5px; text-transform:none;">— optional. The note below already reflects your best answer or a placeholder either way.</span></h2>
-      <div id="ngPendingList" style="display:flex; flex-direction:column; gap:8px;"></div>
+    <div class="card" id="ngPendingCard" style="display:none;border-color:var(--pending);">
+      <h2 style="color:var(--pending-ink);">⏳ Needs your input <span style="font-weight:400;color:var(--ink-soft);font-size:11px;">— optional; note reflects best guess or placeholder if skipped</span></h2>
+      <div id="ngPendingList" style="display:flex;flex-direction:column;gap:8px;"></div>
     </div>
 
     <div class="card" id="ngParsedCard">
-      <h2>Parsed <span style="font-weight:400; color:var(--ink-soft); font-size:11.5px; text-transform:none;">— review before trusting the note below; if something's wrong, edit the text above and it reparses</span></h2>
+      <h2>Parsed <span style="font-weight:400;color:var(--ink-soft);font-size:11px;">— if wrong, edit above and it reparses</span></h2>
       <div id="ngParsedList" class="hint"></div>
     </div>
 
     <div class="card" id="ngNormalCard">
-      <h2>Normal vessels <span style="font-weight:400; color:var(--ink-soft); font-size:11.5px; text-transform:none;">— auto-filled as patent from the exam-scope checklist</span></h2>
+      <h2>Normal vessels <span style="font-weight:400;color:var(--ink-soft);font-size:11px;">— auto-filled as patent</span></h2>
       <div id="ngNormalList" class="hint"></div>
     </div>
 
     <div class="card">
-      <h2>Generated op note <span style="font-weight:400; color:var(--ink-soft); font-size:11.5px; text-transform:none;">— draft only, requires full physician review before charting</span></h2>
+      <h2>Generated op note <span style="font-weight:400;color:var(--ink-soft);font-size:11px;">— draft only · physician review required before charting</span></h2>
       <div class="note-output" id="ngNoteOutput"></div>
       <div class="toolbar">
         <button id="ngCopyNoteBtn" class="secondary small">Copy note</button>
@@ -308,20 +389,24 @@
     </div>
 
     <div class="card">
-      <h2>Suggested CPT codes <span style="font-weight:400; color:var(--ink-soft); font-size:11.5px; text-transform:none;">— professional billing view, derived from Findings/Intervention/Access above</span></h2>
+      <h2>Suggested CPT codes <span class="badge" id="ngBillingBadge">PRO</span></h2>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+        <div class="billing-toggle">
+          <button id="ngBillingPro" class="active" type="button">Pro</button>
+          <button id="ngBillingFac" type="button">Facility</button>
+        </div>
+      </div>
       <div class="code-list" id="ngCodeOut"></div>
-      <div id="ngFlagOut" style="margin-top:8px; display:flex; flex-direction:column; gap:6px;"></div>
+      <div id="ngFlagOut" style="margin-top:8px;display:flex;flex-direction:column;gap:5px;"></div>
       <div class="toolbar">
         <button id="ngCopyCodesBtn" class="secondary small">Copy code list</button>
       </div>
     </div>
+
   </div>
 
-  <div class="footer-note">
-    Built on your Epic SmartPhrase template, with deterministic (non-AI) logic so output is predictable and auditable. CPT territory/code mapping reflects the 2026 lower-extremity revascularization code set (37254–37299). Always confirm modifier 59/XU exceptions and any vessel-count edge cases against the actual documentation before submitting — this tool drafts, it doesn't adjudicate. Optional voice dictation uses your browser's cloud speech recognition (not on-device) — the parsing/coding logic itself still runs entirely in this browser either way. The op note generator builds a deterministic draft from shorthand input only — every section, especially auto-filled "normal" findings and any bracketed placeholder, needs full physician review before it goes in the chart.
-  </div>
-
-</div>
+  </div><!-- end content-wrap -->
+</div><!-- end shell -->
 
 <script>
 // ---------- Tabs ----------
@@ -335,18 +420,72 @@ document.querySelectorAll('.tab').forEach(t=>{
 });
 
 // ---------- AI Normalization Proxy ----------
-// Set this to your Cloudflare Worker URL after deploying worker.js
-// e.g. "https://endovascular-proxy.YOUR-USERNAME.workers.dev"
-// Leave as empty string to hide the normalize button entirely.
 const PROXY_URL = "https://endovascular-proxy.teeleeves1111.workers.dev";
 
-// Show normalize button only when proxy is configured
 if(PROXY_URL){
   document.getElementById('normalizeToolbar').style.display = '';
 }
 
-// Simple word-level diff renderer
-function renderWordDiff(original, normalized){
+// ---------- Billing toggle (shared across all proc types) ----------
+let billingMode = 'pro'; // 'pro' | 'facility'
+
+function setBillingMode(mode) {
+  billingMode = mode;
+  const proBtn = document.getElementById('billingPro');
+  const facBtn = document.getElementById('billingFac');
+  if(proBtn){ proBtn.classList.toggle('active', mode==='pro'); }
+  if(facBtn){ facBtn.classList.toggle('active', mode==='facility'); }
+  const badge = document.getElementById('billingBadge');
+  if(badge) badge.textContent = mode==='pro' ? 'PRO' : 'FACILITY';
+}
+document.getElementById('billingPro')?.addEventListener('click', ()=>setBillingMode('pro'));
+document.getElementById('billingFac')?.addEventListener('click', ()=>setBillingMode('facility'));
+
+// Tab 2 billing toggle (Generate LE Angio Note codes)
+let ngBillingMode = 'pro';
+function setNgBillingMode(mode) {
+  ngBillingMode = mode;
+  document.getElementById('ngBillingPro')?.classList.toggle('active', mode==='pro');
+  document.getElementById('ngBillingFac')?.classList.toggle('active', mode==='facility');
+  const badge = document.getElementById('ngBillingBadge');
+  if(badge) badge.textContent = mode==='pro' ? 'PRO' : 'FACILITY';
+  renderAll(); // re-render codes with new billing mode
+}
+document.getElementById('ngBillingPro')?.addEventListener('click', ()=>setNgBillingMode('pro'));
+document.getElementById('ngBillingFac')?.addEventListener('click', ()=>setNgBillingMode('facility'));
+
+// ---------- Proc type selector ----------
+let currentProc = 'le'; // 'le' | 'fistula' | 'venous' | 'renal'
+
+document.querySelectorAll('[data-proc]').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('[data-proc]').forEach(c => c.classList.remove('on'));
+    chip.classList.add('on');
+    currentProc = chip.dataset.proc;
+    // Show/hide LE vessel card
+    const leCard = document.getElementById('leVesselCard');
+    if(leCard) leCard.style.display = currentProc === 'le' ? '' : 'none';
+    // Clear output and pending
+    document.getElementById('codeOut').innerHTML = '';
+    document.getElementById('flagOut').innerHTML = '';
+    document.getElementById('pendingCard').style.display = 'none';
+    document.getElementById('pendingList').innerHTML = '';
+    document.getElementById('parseResult').textContent = '';
+    // Clear note input
+    document.getElementById('noteInput').value = '';
+    document.getElementById('noteInput').placeholder = currentProc === 'le'
+      ? 'Tap here · type, paste, or use your phone\'s mic\ne.g. right SFA stent, popliteal atherectomy, AT angioplasty, 20 min sedation'
+      : currentProc === 'fistula'
+        ? 'Tap here · type, paste, or use your phone\'s mic\ne.g. AVG fistulogram, thrombectomy and angioplasty, IVUS, 25 min sedation, inflow artery treated'
+        : currentProc === 'venous'
+          ? 'Tap here · type, paste, or use your phone\'s mic\ne.g. left iliac vein stent, IVUS, venacavogram, no prior study, 20 min sedation'
+          : 'Tap here · type, paste, or use your phone\'s mic\ne.g. left renal artery stent, no prior study, IVUS, 20 min sedation';
+    if(currentProc === 'le') { vesselRows = []; renderVessels(); }
+  });
+});
+
+// Simple word-level diff renderer — targetId is the element to render into
+function renderWordDiff(original, normalized, targetId){
   const aw = original.split(/(\s+)/);
   const bw = normalized.split(/(\s+)/);
   const m = aw.length, n = bw.length;
@@ -359,7 +498,8 @@ function renderWordDiff(original, normalized){
     else if(j>0&&(i===0||dp[i][j-1]>=dp[i-1][j])){seq.unshift({t:'add',v:bw[j-1]});j--;}
     else{seq.unshift({t:'rem',v:aw[i-1]});i--;}
   }
-  const el = document.getElementById('normalizeDiff');
+  const el = document.getElementById(targetId);
+  if(!el) return;
   el.innerHTML = '';
   seq.forEach(d=>{
     const span = document.createElement('span');
@@ -376,41 +516,30 @@ document.getElementById('normalizeBtn')?.addEventListener('click', async()=>{
   const raw = document.getElementById('noteInput').value.trim();
   if(!raw){ document.getElementById('normalizeStatus').textContent='Enter some text first.'; return; }
   if(!PROXY_URL) return;
-
   const btn = document.getElementById('normalizeBtn');
   const statusEl = document.getElementById('normalizeStatus');
   btn.disabled = true;
-  statusEl.textContent = 'Fixing dictation errors…';
+  statusEl.textContent = 'Fixing…';
   document.getElementById('normalizeResultCard').style.display='none';
-
   try{
-    const res = await fetch(PROXY_URL, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({text: raw})
-    });
+    const res = await fetch(PROXY_URL, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:raw})});
     const data = await res.json();
     if(!res.ok) throw new Error(data.error||`Error ${res.status}`);
     _lastNormalized = data.normalized;
-    renderWordDiff(raw, data.normalized);
+    renderWordDiff(raw, data.normalized, 'normalizeDiff');
     document.getElementById('normalizeResultCard').style.display='';
     statusEl.textContent = '';
-  }catch(e){
-    statusEl.textContent = 'Error: '+e.message;
-  }finally{
-    btn.disabled = false;
-  }
+  }catch(e){ statusEl.textContent = 'Error: '+e.message; }
+  finally{ btn.disabled = false; }
 });
 
 document.getElementById('applyNormalizedBtn')?.addEventListener('click', ()=>{
   if(_lastNormalized){
     document.getElementById('noteInput').value = _lastNormalized;
     document.getElementById('normalizeResultCard').style.display='none';
-    // Auto-trigger analysis
     document.getElementById('analyzeBtn').click();
   }
 });
-
 document.getElementById('dismissNormalizeBtn')?.addEventListener('click', ()=>{
   document.getElementById('normalizeResultCard').style.display='none';
 });
@@ -429,10 +558,7 @@ async function saveStub(key, el, badgeEl){
     setTimeout(()=>badgeEl.classList.remove('show'), 1500);
   }catch(e){ console.error('save failed', e); }
 }
-loadStub('fistula-template', document.getElementById('fistulaTemplate'));
-loadStub('veno-template', document.getElementById('venoTemplate'));
-document.getElementById('saveFistulaBtn').addEventListener('click', ()=>saveStub('fistula-template', document.getElementById('fistulaTemplate'), document.getElementById('fistulaSaved')));
-document.getElementById('saveVenoBtn').addEventListener('click', ()=>saveStub('veno-template', document.getElementById('venoTemplate'), document.getElementById('venoSaved')));
+// (fistula/venogram stub load/save removed — those panels now replaced by Other Procedures module)
 
 // ---------- CPT code table (2026 LER, verified) ----------
 const CODE_TABLE = {
@@ -513,7 +639,7 @@ function addVesselRow(prefill){
     id, territory:'femoropopliteal', vessel:'SFA/popliteal', lesion:'straightforward', lesionConfirmed:false,
     angioplasty:false, dcb:false, stent:false, stentType:'self-expanding', stentSize:'',
     atherectomy:false, atherType:'directional', lithotripsy:false, ivlSize:'',
-    balloonSize:'', result:'good angiographic result with minimal residual stenosis'
+    balloonSize:'', result:'good angiographic result with no residual stenosis'
   }, prefill||{}));
   renderVessels();
   renderAll();
@@ -777,7 +903,6 @@ function analyzeSegmentText(t){
   const low = t.toLowerCase();
   const out = {lesion:'straightforward', lesionConfirmed:false, angioplasty:false, dcb:false, stent:false,
     atherectomy:false, lithotripsy:false, balloonSize:'', stentSize:'', stentType:'self-expanding',
-    postDilType:'', postDilSize:'',
     result:'good result', bridgeWithPrevious:false, tpTrunkFlag:false};
 
   if(/tibioperoneal trunk|\btp trunk\b/.test(low)) out.tpTrunkFlag = true;
@@ -857,23 +982,8 @@ function analyzeSegmentText(t){
   }
   if(stentBrand) out.stentSize = (out.stentSize ? out.stentSize + ' ' : '') + stentBrand;
 
-  // Post-dilation detection — "post-dilated with a 7mm balloon" / "post-dilated with 7mm DCB"
-  // Only meaningful when a stent was also placed; captured here so the
-  // pending section can ask about it specifically for stented vessels.
-  if(out.stent){
-    const postDilM = /post[-\s]?dil(?:at(?:ed?|ing|ion))?(?:\s+with(?:\s+a?)?)?\s*([\d.]+\s*(?:x\s*[\d.]+)?\s*mm)/i.exec(t);
-    if(postDilM){
-      out.postDilSize = postDilM[1].replace(/\s+/g,'');
-      const postDilIdx = low.search(/post[-\s]?dil/);
-      const postCtx = low.slice(postDilIdx, postDilIdx+60);
-      if(/dcb|drug.coat/i.test(postCtx)) out.postDilType = 'dcb';
-      else if(/ivl|lithotripsy/i.test(postCtx)) out.postDilType = 'ivl';
-      else out.postDilType = 'angioplasty';
-    }
-  }
-
   // grab a short "result/findings" snippet if present
-  const resultMatch = t.match(/(good result|excellent result|minimal residual stenosis|brisk flow|widely patent|excellent angiographic result)[^.]*\./i);
+  const resultMatch = t.match(/(good result|excellent result|no residual stenosis|brisk flow|widely patent|excellent angiographic result)[^.]*\./i);
   if(resultMatch) out.result = resultMatch[0].trim();
 
   return out;
@@ -965,21 +1075,25 @@ let caseAnswers = {aortogram: null, sedationAnswered: false, sedationMinutes: 0,
 document.getElementById('analyzeBtn').addEventListener('click', ()=>{
   const text = document.getElementById('noteInput').value.trim();
   const resultEl = document.getElementById('parseResult');
-  if(!text){ resultEl.textContent = 'Paste a note first.'; return; }
+  if(!text){ resultEl.textContent = 'Paste or type a note first.'; return; }
 
-  caseAnswers = {aortogram: null, sedationAnswered: false, sedationMinutes: 0, usGuidance: null};
-
-  const parsed = parseFullNote(text);
-  if(!parsed.length){
-    resultEl.textContent = 'No recognizable vessels found — add manually below.';
+  if(currentProc === 'le'){
+    caseAnswers = {aortogram: null, sedationAnswered: false, sedationMinutes: 0, usGuidance: null};
+    const parsed = parseFullNote(text);
+    if(!parsed.length){
+      resultEl.textContent = 'No recognizable vessels found — add manually below.';
+      renderAll();
+      return;
+    }
+    vesselRows = [];
+    parsed.forEach(p=>addVesselRow(p, true));
+    resultEl.textContent = `Found ${parsed.length} vessel(s) — review below.`;
+    renderVessels();
     renderAll();
-    return;
+  } else {
+    analyzeOtherProc(text, currentProc);
+    resultEl.textContent = '';
   }
-  vesselRows = [];
-  parsed.forEach(p=>addVesselRow(p, true));
-  resultEl.textContent = `Found ${parsed.length} vessel(s) — review/correct below, especially any bridging-lesion or TP-trunk flags, before trusting the codes.`;
-  renderVessels();
-  renderAll();
 });
 
 document.getElementById('noteInput').addEventListener('input', renderAll);
@@ -992,114 +1106,377 @@ document.getElementById('noteInput').addEventListener('input', renderAll);
 document.getElementById('noteInput').addEventListener('focus', function(){ this.select(); });
 
 document.getElementById('newPatientBtn').addEventListener('click', ()=>{
-  if(window.stopDictationIfActive) window.stopDictationIfActive();
   const noteInputEl = document.getElementById('noteInput');
   noteInputEl.value = '';
   vesselRows = [];
   caseAnswers = {aortogram: null, sedationAnswered: false, sedationMinutes: 0, usGuidance: null};
   document.getElementById('parseResult').textContent = '';
+  document.getElementById('codeOut').innerHTML = '';
+  document.getElementById('flagOut').innerHTML = '';
+  document.getElementById('pendingCard').style.display = 'none';
+  document.getElementById('pendingList').innerHTML = '';
   renderVessels();
   renderAll();
   noteInputEl.focus();
 });
 
-// ---------- Voice dictation (Web Speech API) ----------
-// Freeform: talk naturally, same as dictating into Epic. Transcribed text
-// lands in the same textarea as typing/pasting, so everything downstream
-// (Analyze button, parser) works identically regardless of input method.
-// Note: this uses the browser's built-in cloud speech recognition (Chrome/
-// Edge), not on-device transcription — audio leaves the browser to be
-// transcribed, unlike the rest of this tool's logic.
-//
-// Reusable so the op note generator's Findings/Intervention boxes can use
-// the exact same dictation behavior as the coding analyzer's note box,
-// rather than a separate implementation. Returns a stop() function the
-// caller can use to cut off an active session (e.g. when switching tabs or
-// re-rendering the textarea away).
-function attachDictation(textareaId, buttonId, statusId, onUpdate){
-  const dictateBtn = document.getElementById(buttonId);
-  const dictateStatus = document.getElementById(statusId);
-  const textareaEl = document.getElementById(textareaId);
-  const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-  if(!dictateBtn || !textareaEl) return function(){};
-
-  if(!SpeechRecognitionImpl){
-    dictateBtn.disabled = true;
-    dictateBtn.title = 'Voice dictation not supported in this browser';
-    if(dictateStatus) dictateStatus.textContent = 'Not supported in this browser — try Chrome or Edge, or just type/paste above.';
-    return function(){};
-  }
-
-  const recognition = new SpeechRecognitionImpl();
-  recognition.continuous = true;
-  recognition.interimResults = true;
-  recognition.lang = 'en-US';
-
-  let isListening = false;     // user-intent toggle (mic button state)
-  let baseText = '';           // textarea contents at the moment listening started
-  let finalTranscript = '';    // accumulated finalized speech this session
-
-  recognition.onresult = (event)=>{
-    let interim = '';
-    for(let i = event.resultIndex; i < event.results.length; i++){
-      const transcript = event.results[i][0].transcript;
-      if(event.results[i].isFinal) finalTranscript += transcript + ' ';
-      else interim += transcript;
-    }
-    textareaEl.value = baseText + finalTranscript + interim;
-    if(onUpdate) onUpdate();
-  };
-
-  recognition.onerror = (event)=>{
-    if(event.error === 'no-speech') return; // benign, recognition continues
-    isListening = false;
-    dictateBtn.textContent = '🎤 Dictate';
-    dictateBtn.classList.remove('listening');
-    if(!dictateStatus) return;
-    if(event.error === 'not-allowed' || event.error === 'service-not-allowed'){
-      dictateStatus.textContent = 'Microphone access denied — check browser permissions and try again.';
-    } else {
-      dictateStatus.textContent = `Mic error (${event.error}) — tap Dictate to retry.`;
-    }
-  };
-
-  recognition.onend = ()=>{
-    // Chrome periodically ends the session on its own (e.g. after a pause).
-    // If the user hasn't tapped "stop", restart seamlessly so it behaves
-    // like continuous dictation rather than stopping after every silence.
-    if(isListening){
-      try{ recognition.start(); } catch(e){ /* ignore rapid restart errors */ }
-    }
-  };
-
-  function stopDictation(){
-    isListening = false;
-    dictateBtn.textContent = '🎤 Dictate';
-    dictateBtn.classList.remove('listening');
-    if(dictateStatus) dictateStatus.textContent = '';
-    try{ recognition.stop(); }catch(e){}
-  }
-
-  dictateBtn.addEventListener('click', ()=>{
-    if(isListening){
-      stopDictation();
-    } else {
-      baseText = textareaEl.value;
-      if(baseText && !/\s$/.test(baseText)) baseText += ' ';
-      finalTranscript = '';
-      isListening = true;
-      dictateBtn.textContent = '⏹ Stop';
-      dictateBtn.classList.add('listening');
-      if(dictateStatus) dictateStatus.textContent = 'Listening — talk naturally, like dictating the note.';
-      try{ recognition.start(); }catch(e){ /* already running */ }
-    }
-  });
-
-  return function(){ if(isListening) stopDictation(); };
+// ---------- runNormalize helper (used by Tab 2 AI fix buttons) ----------
+async function runNormalize(inputId, diffId, resultCardId, statusId, btnId){
+  const raw = document.getElementById(inputId)?.value?.trim();
+  if(!raw){ if(statusId) document.getElementById(statusId).textContent='Enter text first.'; return; }
+  if(!PROXY_URL) return;
+  const btn = document.getElementById(btnId);
+  const statusEl = document.getElementById(statusId);
+  if(btn) btn.disabled = true;
+  if(statusEl) statusEl.textContent = 'Fixing…';
+  document.getElementById(resultCardId).style.display='none';
+  try{
+    const res = await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:raw})});
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error||`Error ${res.status}`);
+    document.getElementById(diffId).dataset.normalized = data.normalized;
+    renderWordDiff(raw, data.normalized, diffId);
+    document.getElementById(resultCardId).style.display='';
+    if(statusEl) statusEl.textContent='';
+  }catch(e){ if(statusEl) statusEl.textContent='Error: '+e.message; }
+  finally{ if(btn) btn.disabled=false; }
 }
 
-window.stopDictationIfActive = attachDictation('noteInput', 'dictateBtn', 'dictateStatus');
+// ---------- OTHER PROC PARSERS (Fistulogram / Venous / Renal) ----------
+
+// ---- Shared render for non-LE code output ----
+function renderOtherCodes(codes, flags) {
+  const codeEl = document.getElementById('codeOut');
+  const flagEl = document.getElementById('flagOut');
+  codeEl.innerHTML = '';
+  flagEl.innerHTML = '';
+  codes.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'code-item';
+    div.innerHTML = `<span class="code">${c.code}</span><span class="desc">${c.desc}</span>`;
+    codeEl.appendChild(div);
+  });
+  flags.forEach(f => {
+    const div = document.createElement('div');
+    div.className = 'flag-item';
+    const icon = f.type==='facility'?'🏥':f.type==='prompt'?'💡':'⚠️';
+    div.innerHTML = `<b>${icon}</b><span>${f.text}</span>`;
+    flagEl.appendChild(div);
+  });
+}
+
+// ---- Pending questions system for non-LE procs ----
+let otherProcDet = null; // holds the parsed detection object
+let otherProcPending = []; // list of pending question objects
+
+function renderOtherPending(pending, det, proc) {
+  const card = document.getElementById('pendingCard');
+  const list = document.getElementById('pendingList');
+  list.innerHTML = '';
+  if (!pending.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  pending.forEach(p => {
+    const div = document.createElement('div');
+    div.className = 'pending-item';
+    if (p.type === 'number') {
+      div.innerHTML = `<span class="ptext">${p.text}</span><input type="number" min="0" max="300" value="0" id="pend_${p.id}" style="width:80px;"> <button type="button" id="pendBtn_${p.id}">Confirm</button>`;
+      div.querySelector(`#pendBtn_${p.id}`).addEventListener('click', ()=>{
+        const val = document.getElementById(`pend_${p.id}`).value;
+        p.resolve(val);
+        finalizePendingAndRender(proc);
+      });
+    } else {
+      const opts = p.options.map(o=>`<button type="button" data-answer="${o}">${o}</button>`).join('');
+      div.innerHTML = `<span class="ptext">${p.text}</span>${opts}`;
+      div.querySelectorAll('[data-answer]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          p.resolve(btn.dataset.answer);
+          finalizePendingAndRender(proc);
+        });
+      });
+    }
+    list.appendChild(div);
+  });
+}
+
+function finalizePendingAndRender(proc) {
+  // Remove resolved questions and re-check for remaining ones
+  otherProcPending = otherProcPending.filter(p => {
+    // A question is resolved if its key was answered (det was mutated by resolve())
+    return false; // all answered ones are resolved one at a time — rebuild from scratch
+  });
+  // Re-run pending check on updated det
+  const newPending = buildPendingForProc(otherProcDet, proc);
+  otherProcPending = newPending;
+  if (newPending.length) {
+    renderOtherPending(newPending, otherProcDet, proc);
+  } else {
+    document.getElementById('pendingCard').style.display = 'none';
+    const result = buildCodesForProc(otherProcDet, proc, billingMode);
+    renderOtherCodes(result.codes, result.flags);
+  }
+}
+
+function buildPendingForProc(det, proc) {
+  if (proc === 'fistula') return buildFistuloPending(det);
+  if (proc === 'venous') return buildVenousPending(det);
+  if (proc === 'renal') return buildRenalPending(det);
+  return [];
+}
+
+function buildCodesForProc(det, proc, billing) {
+  if (proc === 'fistula') return buildFistuloCodes(det, billing);
+  if (proc === 'venous') return buildVenousCodes(det, billing);
+  if (proc === 'renal') return buildRenalCodes(det, billing);
+  return {codes:[], flags:[]};
+}
+
+function analyzeOtherProc(text, proc) {
+  let det;
+  if (proc === 'fistula') det = parseFistuloText(text);
+  else if (proc === 'venous') det = parseVenousText(text);
+  else if (proc === 'renal') det = parseRenalText(text);
+  else return;
+
+  otherProcDet = det;
+  const pending = buildPendingForProc(det, proc);
+  otherProcPending = pending;
+
+  if (pending.length) {
+    renderOtherPending(pending, det, proc);
+    // Show partial codes immediately (what we know so far)
+    const partial = buildCodesForProc(det, proc, billingMode);
+    renderOtherCodes(partial.codes, partial.flags);
+  } else {
+    document.getElementById('pendingCard').style.display = 'none';
+    const result = buildCodesForProc(det, proc, billingMode);
+    renderOtherCodes(result.codes, result.flags);
+  }
+}
+
+// ---- FISTULOGRAM PARSER ----
+function parseFistuloText(text) {
+  const low = text.toLowerCase();
+  const det = {};
+  det.isAVG = /\bavg\b|\bgraft\b/.test(low);
+  det.isAVF = /\bavf\b|\bfistula\b/.test(low) && !det.isAVG;
+  if (!det.isAVF && !det.isAVG) det.accessTypeUnknown = true;
+  det.thrombectomy = /thrombo?ect|declot|lysis of clot/.test(low);
+  det.angioplasty = /angioplasty|\bpta\b|balloon dilation|balloon angio/.test(low);
+  det.stent = /\bstent/.test(low) && !/prior stent|existing stent|stent in place|stent noted/.test(low);
+  det.ivus = /\bivus\b|intravascular ultrasound/.test(low);
+  det.usGuidance = /ultrasound.guided access|us.guided access|76937/.test(low);
+  det.sedationMin = 0;
+  const sm1 = low.match(/(?:sedation|moderate sedation)[^.]*?(\d+)\s*min/);
+  const sm2 = low.match(/(\d+)\s*min(?:utes?)?\s*(?:of\s*)?(?:moderate\s*)?sedation/);
+  if (sm1) det.sedationMin = parseInt(sm1[1]);
+  else if (sm2) det.sedationMin = parseInt(sm2[1]);
+  det.inflowMentioned = /inflow artery|inflow vessel|arterial inflow/.test(low);
+  det.inflowFar = /\d+\s*cm\s*from|far from anastomosis|proximal to anastomosis/.test(low);
+  det.inflowNear = /near anastomosis|adjacent to anastomosis|<\s*3\s*cm/.test(low);
+  det.ivusCount = 1;
+  if (det.ivus) { const m=low.match(/ivus[^.]*?(\d)\s*vessel|(\d)\s*vessel[^.]*?ivus/); if(m) det.ivusCount=parseInt(m[1]||m[2]); }
+  return det;
+}
+
+function buildFistuloPending(det) {
+  const pending = [];
+  if (det.accessTypeUnknown) {
+    pending.push({id:'f_accessType', text:'AVF or AVG?', options:['AVF (fistula)','AVG (graft)'],
+      resolve:(ans)=>{ det.isAVF=ans.includes('AVF'); det.isAVG=ans.includes('AVG'); det.accessTypeUnknown=false; }});
+  }
+  if (det.sedationMin === 0) {
+    pending.push({id:'f_sedation', text:'Moderate sedation time (minutes)? Enter 0 if none.', type:'number',
+      resolve:(val)=>{ det.sedationMin=parseInt(val)||0; }});
+  }
+  if (det.inflowMentioned && !det.inflowFar && !det.inflowNear) {
+    pending.push({id:'f_inflow', text:'Inflow artery: how far from anastomosis?',
+      options:['<3 cm — near, bundled (no extra codes)','≥3 cm — far, separate codes (36215 + 75710)'],
+      resolve:(ans)=>{ det.inflowNear=ans.includes('near'); det.inflowFar=ans.includes('far'); det.inflowMentioned=false; }});
+  }
+  if (det.ivus && det.ivusCount === 1) {
+    pending.push({id:'f_ivusCount', text:'IVUS — how many vessels examined?', type:'number',
+      resolve:(val)=>{ det.ivusCount=Math.max(1,parseInt(val)||1); }});
+  }
+  return pending;
+}
+
+function buildFistuloCodes(det, billing) {
+  const codes=[], flags=[];
+  if (det.thrombectomy && det.isAVF)
+    flags.push({type:'flag', text:'AVF thrombectomy: open surgical codes (36831–36833) typically apply, not 36904–36906. Confirm with billing.'});
+  if (det.stent && det.angioplasty)
+    flags.push({type:'flag', text:'Stent code bundles angioplasty — PTA not billed separately on the same vessel.'});
+  let base;
+  if (!det.thrombectomy) {
+    if (det.stent) base={code:'36903',desc:'Fistulogram with stent (includes angioplasty if performed)'};
+    else if (det.angioplasty) base={code:'36902',desc:'Fistulogram with angioplasty'};
+    else base={code:'36901',desc:'Fistulogram, diagnostic'};
+  } else {
+    if (det.stent) base={code:'36906',desc:'Fistulogram + thrombectomy + stent'};
+    else if (det.angioplasty) base={code:'36905',desc:'Fistulogram + thrombectomy + angioplasty'};
+    else base={code:'36904',desc:'Fistulogram + thrombectomy, diagnostic'};
+  }
+  codes.push(base);
+  if (det.ivus) {
+    codes.push({code:'37252',desc:'IVUS, initial noncoronary vessel'});
+    for(let i=1;i<det.ivusCount;i++) codes.push({code:'+37253',desc:'IVUS, additional vessel'+(billing==='facility'?' ⚠️ APC packaged':'')});
+    flags.push({type:'prompt',text:'IVUS: confirm saved permanent image with documented findings.'});
+  }
+  if (det.usGuidance)
+    codes.push({code:billing==='pro'?'76937-26':'76937',desc:'US guidance, vascular access'+(billing==='pro'?' (pro: -26)':'')});
+  if (det.inflowFar) {
+    codes.push({code:'36215',desc:'Selective cath, first-order branch (inflow artery, far anastomosis)'});
+    codes.push({code:billing==='pro'?'75710-26-XU':'75710-XU',desc:'Extremity arteriogram, inflow artery (true diagnostic)'+(billing==='pro'?' (pro: -26)':'')});
+    flags.push({type:'flag',text:'Inflow ≥3 cm from anastomosis: confirm independent diagnostic documentation standard met.'});
+  } else if (det.inflowNear) {
+    flags.push({type:'flag',text:'Inflow near anastomosis (<3 cm): bundled into fistulogram code — no separate arterial intervention codes.'});
+  }
+  if (det.sedationMin >= 10) {
+    codes.push({code:'99152',desc:`Moderate sedation (${det.sedationMin} min)`});
+    const extra=Math.floor((det.sedationMin-15)/8);
+    if(extra>0){ if(billing==='facility') codes.push({code:'+99153',desc:`Moderate sedation, additional ×${extra} (facility)`}); else flags.push({type:'facility',text:`99153 ×${extra}: facility-only — excluded from professional list.`}); }
+  }
+  return {codes, flags};
+}
+
+// ---- VENOUS PARSER ----
+function parseVenousText(text) {
+  const low = text.toLowerCase();
+  const det = {};
+  det.stent = /iliac vein stent|venous stent|stent(?:ing)? of (?:the )?(?:left|right|bilateral)? ?iliac vein/.test(low)||(/\bstent\b/.test(low)&&/\bvein\b|\bvenous\b|\biliac\b/.test(low));
+  det.venoplasty = /venoplasty|balloon venoplasty|venous angioplasty|37248/.test(low) && !det.stent;
+  det.ivcInsert = /ivc filter|inferior vena cava filter|filter (?:was )?placed|filter insertion/.test(low) && !/retriev|remov/.test(low);
+  det.ivcRetrieve = /(?:ivc filter|filter) (?:was )?(?:retriev|remov)|filter retrieval/.test(low);
+  det.ivus = /\bivus\b|intravascular ultrasound/.test(low);
+  det.ivusCount = 1;
+  if(det.ivus){const m=low.match(/(\d)\s*vessel[^.]*?ivus|ivus[^.]*?(\d)\s*vessel/);if(m)det.ivusCount=parseInt(m[1]||m[2]);}
+  det.bilateralKw = /\bbilateral\b/.test(low);
+  det.leftSide = /\bleft\b/.test(low);
+  det.rightSide = /\bright\b/.test(low);
+  det.bilateral = det.bilateralKw||(det.leftSide&&det.rightSide);
+  det.lateralityUnknown = !det.bilateral&&!det.leftSide&&!det.rightSide&&(det.stent||det.venoplasty);
+  det.venogram = /venogram|venography|venacavogram|cavogram/.test(low);
+  det.trueDiagnostic = /no prior|prior study unavailable|prior study inadequate|independent diagnostic|true diagnostic/.test(low);
+  if(/vena cava|venacava|caval|venacavogram|cavogram/.test(low)) det.venogramType='vena_cava';
+  else if(/bilateral.*extrem|extrem.*bilateral/.test(low)) det.venogramType='extremity_bilateral';
+  else if(/renal vein/.test(low)) det.venogramType='renal';
+  else det.venogramType='extremity_unilateral';
+  det.sedationMin=0;
+  const sm=low.match(/(\d+)\s*min(?:utes?)?\s*(?:of\s*)?(?:moderate\s*)?sedation|sedation[^.]*?(\d+)\s*min/);
+  if(sm) det.sedationMin=parseInt(sm[1]||sm[2]);
+  return det;
+}
+
+function buildVenousPending(det) {
+  const pending=[];
+  if(det.lateralityUnknown)
+    pending.push({id:'v_lat',text:'Laterality — left, right, or bilateral?',options:['Left','Right','Bilateral'],
+      resolve:(ans)=>{det.leftSide=true;det.rightSide=ans==='Bilateral';det.bilateral=ans==='Bilateral';det.lateralityUnknown=false;}});
+  if(det.venogram && !det.trueDiagnostic)
+    pending.push({id:'v_diag',text:'Was this a true independent diagnostic study (prior study unavailable/inadequate)?',options:['Yes — bill with XU modifier','No — bundled into intervention'],
+      resolve:(ans)=>{det.trueDiagnostic=ans.startsWith('Yes');}});
+  if(det.sedationMin===0&&(det.stent||det.venoplasty||det.ivcInsert))
+    pending.push({id:'v_sed',text:'Moderate sedation time (minutes)? Enter 0 if none.',type:'number',resolve:(val)=>{det.sedationMin=parseInt(val)||0;}});
+  return pending;
+}
+
+function buildVenousCodes(det, billing) {
+  const codes=[],flags=[];
+  const pro=billing==='pro';
+  if(det.stent){
+    if(det.bilateral){codes.push({code:'37238',desc:'Venous stent, initial vein (iliac)'});codes.push({code:'+37239',desc:'Venous stent, additional vein (contralateral)'+(pro?'':' ⚠️ APC packaged')});flags.push({type:'flag',text:'Bilateral venous stenting: 37238 + 37239. Never modifier -50.'});}
+    else{const side=det.leftSide?'left':det.rightSide?'right':'';codes.push({code:'37238',desc:`Venous stent${side?', '+side+' iliac':''}`});}
+    flags.push({type:'prompt',text:'Stent device C-code required on facility claim (e.g. C1874). Missing → claim rejection.'});
+  } else if(det.venoplasty){
+    if(det.bilateral){codes.push({code:'37248',desc:'Venoplasty, initial vein'});codes.push({code:'+37249',desc:'Venoplasty, additional vein'+(pro?'':' ⚠️ APC packaged')});}
+    else codes.push({code:'37248',desc:'Venoplasty, initial vein'});
+  } else if(det.ivcInsert){
+    codes.push({code:'37191',desc:'IVC filter insertion'});flags.push({type:'prompt',text:'Device C-code required on facility claim for IVC filter.'});
+  } else if(det.ivcRetrieve) codes.push({code:'37193',desc:'IVC filter retrieval'});
+  if(det.ivus){
+    codes.push({code:'37252',desc:'IVUS, initial vessel'});
+    for(let i=1;i<det.ivusCount;i++) codes.push({code:'+37253',desc:'IVUS, additional vessel'+(pro?'':' ⚠️ APC packaged')});
+    flags.push({type:'prompt',text:'IVUS revenue driver: confirm saved permanent image with documented findings.'});
+  }
+  if(det.venogram&&det.trueDiagnostic){
+    const mod=pro?'-26-XU':'-XU';
+    const cm={vena_cava:`75825${mod}`,extremity_bilateral:`75822${mod}`,renal:`75833${mod}`,extremity_unilateral:`75820${mod}`};
+    codes.push({code:cm[det.venogramType],desc:'Diagnostic venogram'+(pro?' (pro: -26)':'')});
+    flags.push({type:'flag',text:'Venogram XU modifier: confirm prior study unavailable/inadequate; findings independently characterized pathology.'});
+  } else if(det.venogram&&!det.trueDiagnostic) {
+    flags.push({type:'flag',text:'Venogram detected — bundled into intervention. Add XU documentation if true independent diagnostic standard was met.'});
+  }
+  if(det.sedationMin>=10){
+    codes.push({code:'99152',desc:`Moderate sedation (${det.sedationMin} min)`});
+    const ex=Math.floor((det.sedationMin-15)/8);
+    if(ex>0){if(!pro)codes.push({code:'+99153',desc:`Moderate sedation, additional ×${ex}`});else flags.push({type:'facility',text:`99153 ×${ex}: facility-only.`});}
+  }
+  return {codes, flags};
+}
+
+// ---- RENAL / VISCERAL PARSER ----
+function parseRenalText(text) {
+  const low=text.toLowerCase();
+  const det={};
+  det.renal=/renal artery|renal stenosis|renal stent|renovascular/.test(low);
+  det.sma=/\bsma\b|superior mesenteric/.test(low);
+  det.celiac=/\bceliac\b/.test(low);
+  det.ima=/\bima\b|inferior mesenteric/.test(low);
+  det.stent=/\bstent/.test(low)&&!/prior stent|stent in place/.test(low);
+  det.pta=/angioplasty|\bpta\b|balloon/.test(low)&&!det.stent;
+  det.bilateralKw=/\bbilateral\b/.test(low);
+  det.leftSide=/\bleft\b/.test(low);
+  det.rightSide=/\bright\b/.test(low);
+  det.bilateral=det.renal&&(det.bilateralKw||(det.leftSide&&det.rightSide));
+  det.sideUnknown=det.renal&&!det.bilateral&&!det.leftSide&&!det.rightSide;
+  det.ivus=/\bivus\b|intravascular ultrasound/.test(low);
+  det.diagnosticAngio=/diagnostic arteriogram|diagnostic angiogram|no prior|prior study/.test(low);
+  det.trueDiagnostic=/no prior|prior unavailable|prior inadequate|independent diagnostic/.test(low);
+  det.sedationMin=0;
+  const sm=low.match(/(\d+)\s*min(?:utes?)?\s*(?:of\s*)?(?:moderate\s*)?sedation|sedation[^.]*?(\d+)\s*min/);
+  if(sm) det.sedationMin=parseInt(sm[1]||sm[2]);
+  return det;
+}
+
+function buildRenalPending(det) {
+  const pending=[];
+  if(det.renal&&det.sideUnknown)
+    pending.push({id:'r_side',text:'Renal artery — left, right, or bilateral?',options:['Left','Right','Bilateral'],
+      resolve:(ans)=>{det.leftSide=true;det.rightSide=ans==='Bilateral';det.bilateral=ans==='Bilateral';det.sideUnknown=false;}});
+  if(det.diagnosticAngio&&!det.trueDiagnostic)
+    pending.push({id:'r_diag',text:'Was this a true independent diagnostic arteriogram (prior study unavailable/inadequate)?',options:['Yes — bill with XU modifier','No — bundled'],
+      resolve:(ans)=>{det.trueDiagnostic=ans.startsWith('Yes');det.diagnosticAngio=true;}});
+  if(det.sedationMin===0)
+    pending.push({id:'r_sed',text:'Moderate sedation time (minutes)? Enter 0 if none.',type:'number',resolve:(val)=>{det.sedationMin=parseInt(val)||0;}});
+  return pending;
+}
+
+function buildRenalCodes(det, billing) {
+  const codes=[],flags=[];
+  const pro=billing==='pro';
+  if(det.stent){
+    codes.push({code:'37236',desc:'Arterial stent, initial vessel (renal/visceral)'});
+    if(det.bilateral) codes.push({code:'+37237',desc:'Arterial stent, additional vessel (contralateral renal)'+(pro?'':' ⚠️ APC packaged')});
+    flags.push({type:'prompt',text:'Stent device C-code required on facility claim (e.g. C1874/C1887).'});
+  } else if(det.pta){
+    codes.push({code:'37246',desc:'Balloon angioplasty, initial vessel (renal/visceral)'});
+    if(det.bilateral) codes.push({code:'+37247',desc:'Balloon angioplasty, additional vessel'+(pro?'':' ⚠️ APC packaged')});
+  }
+  if(det.diagnosticAngio&&det.trueDiagnostic){
+    const mod=pro?'-26-XU':'-XU';
+    if(det.renal){codes.push({code:det.bilateral?`75724${mod}`:`75722${mod}`,desc:`Renal arteriogram${det.bilateral?', bilateral':''}`+(pro?' (pro: -26)':'')});}
+    else codes.push({code:`75726${mod}`,desc:'Visceral arteriogram'+(pro?' (pro: -26)':'')});
+    flags.push({type:'flag',text:'Diagnostic arteriogram XU modifier: confirm prior study unavailable/inadequate; findings independently characterized pathology and drove treatment decision.'});
+  }
+  if(det.ivus){codes.push({code:'37252',desc:'IVUS, initial vessel'});flags.push({type:'prompt',text:'IVUS: confirm saved permanent image with documented findings.'});}
+  if(det.sedationMin>=10){
+    codes.push({code:'99152',desc:`Moderate sedation (${det.sedationMin} min)`});
+    const ex=Math.floor((det.sedationMin-15)/8);
+    if(ex>0){if(!pro)codes.push({code:'+99153',desc:`Moderate sedation, additional ×${ex}`});else flags.push({type:'facility',text:`99153 ×${ex}: facility-only.`});}
+  }
+  return {codes, flags};
+}
 
 // Parses a clock-time token like "1432", "14:32", or "2:32 pm" into minutes
 // since midnight. Returns null if it doesn't look like a valid time.
@@ -1772,7 +2149,7 @@ function parseShorthandLine(text){
     stent: base.stent || stents.length>0,
     stents,
     tpTrunkFlagged,
-    result: base.result === 'good result' ? 'good angiographic result with minimal residual stenosis' : base.result
+    result: base.result === 'good result' ? 'good angiographic result with no residual stenosis' : base.result
   };
 }
 
@@ -1911,13 +2288,14 @@ function ngHasTreatment(t){
 let ngExcludedKeys = new Set();   // "side|key" entries the user removed from a parse
 let ngManualLesion = {};          // "side|key" -> 'straightforward'|'complex'
 let ngManualStentSize = {};       // "side|key" -> "6x150mm" (overrides a missing stent size)
-let ngManualPostStent = {};       // compositeKey -> {type:'angioplasty'|'dcb'|'ivl'|'none', size:''}
 let ngUsGuidanceAnswer = null;    // null | true | false — manual answer when not detected in text
 let ngSedationAnswered = false;
 let ngSedationMinutes = 0;
 let ngPrimaryAccess = new Set();     // subset of 'leftFemoral','rightFemoral','leftBrachial','rightBrachial'
-let ngSecondaryAccess = new Set();   // subset of 'pt','at','popliteal','peroneal' — bailout/retrograde access, auto-attached by lesion side
-let ngClosureByAccess = {};          // accessKey -> 'manual'|'perclose'|'mynx'|'angioseal'
+let ngSecondaryAccess = new Set();   // subset of 'pt','at','popliteal','peroneal'
+// Per-site closure map: key = access key (e.g. 'rightFemoral'), value = closure method string
+// Brachial sites are always 'manual' and never stored here.
+let ngClosureByAccess = {};          // e.g. {rightFemoral:'perclose', leftFemoral:'manual'}
 let ngAortogramTierAnswer = null;    // null | true | false — manual answer for the "ask" tier (crossover or bilateral below-iliac treatment)
 
 function ngFindingsText(){ return document.getElementById('ngFindingsInput').value || ''; }
@@ -1977,55 +2355,43 @@ function ngApproachForSide(side){
   return null;
 }
 
-// Brachial-only access (no femoral access at all) always closes via manual
-// pressure at the arm stick — no closure-device question needed or shown.
-function ngIsClosureAutoManual(){
-  return ngHasBrachialAccess() && !ngHasFemoralAccess();
-}
-
-// Returns the resolved closure method for a single access key.
-// Brachial is always manual; femoral uses whatever the user picked.
-function ngClosureForKey(accessKey){
-  if(ngAccessKeyIsBrachial(accessKey)) return 'manual';
-  return ngClosureByAccess[accessKey] || null;
-}
-
+// Brachial access always closes with manual pressure — no picker shown for it.
+// Femoral access gets a picker per site.
 const NG_CLOSURE_TEXT = {
-  manual: 'manual pressure',
-  perclose: 'a Perclose closure device',
-  mynx: 'a Mynx closure device',
+  manual:    'manual pressure',
+  perclose:  'a Perclose closure device',
+  mynx:      'a Mynx closure device',
   angioseal: 'an Angio-Seal closure device'
 };
+const NG_CLOSURE_LABEL = {
+  manual:    'Manual',
+  perclose:  'Perclose',
+  mynx:      'Mynx',
+  angioseal: 'Angio-Seal'
+};
+const NG_ACCESS_SITE_LABEL = {
+  leftFemoral:  'Left femoral',
+  rightFemoral: 'Right femoral',
+  leftBrachial: 'Left brachial',
+  rightBrachial:'Right brachial'
+};
 
-// Builds the closing sentence, handling per-site closure when left and right
-// femoral sheaths used different devices.
-function ngBuildClosingLine(){
-  const keys = ngAccessOrderedKeys();
-  const sheathesTerm = keys.length > 1 ? 'sheaths were' : 'sheath was';
-  if(!keys.length){
-    return `Guidewires and catheters were removed. The introducer sheath was withdrawn and hemostasis was achieved with [closure method]. The patient tolerated the procedure without incident.`;
-  }
-  // Group sites by their closure method to detect whether they're all the same
-  const byMethod = {};
-  keys.forEach(k=>{
-    const m = ngClosureForKey(k);
-    const label = ngAccessSiteLabel(k);
-    if(!byMethod[m]) byMethod[m] = [];
-    byMethod[m].push(label);
-  });
-  const methods = Object.keys(byMethod);
-  if(methods.length === 1){
-    // All sites same closure — simple sentence
-    const closureText = methods[0] !== 'null' && methods[0] ? NG_CLOSURE_TEXT[methods[0]] : '[closure method]';
-    return `Guidewires and catheters were removed. The introducer ${sheathesTerm} withdrawn and hemostasis was achieved with ${closureText}. The patient tolerated the procedure without incident.`;
-  }
-  // Different closures per site
-  const parts = methods.map(m=>{
-    const closureText = (m && m !== 'null') ? NG_CLOSURE_TEXT[m] : '[closure method]';
-    const sites = byMethod[m];
-    return `${sites.join(' and ')} hemostasis was achieved with ${closureText}`;
-  });
-  return `Guidewires and catheters were removed. The introducer ${sheathesTerm} withdrawn; ${parts.join(', and ')}. The patient tolerated the procedure without incident.`;
+function ngFemoralAccessKeys(){
+  return ['leftFemoral','rightFemoral'].filter(k=>ngPrimaryAccess.has(k));
+}
+function ngBrachialAccessKeys(){
+  return ['leftBrachial','rightBrachial'].filter(k=>ngPrimaryAccess.has(k));
+}
+// Returns closure method for a given access key; brachial always 'manual'
+function ngClosureForSite(accessKey){
+  if(/Brachial/.test(accessKey)) return 'manual';
+  return ngClosureByAccess[accessKey] || null;
+}
+// True when all femoral sites have a closure selected
+function ngAllClosuresResolved(){
+  const femorals = ngFemoralAccessKeys();
+  if(!femorals.length) return true; // brachial-only, all auto-manual
+  return femorals.every(k => !!ngClosureByAccess[k]);
 }
 
 // Three-tier rule for whether an aortogram / leg angiogram is included and
@@ -2139,21 +2505,6 @@ function ngEffectiveStentSize(record, stentIdx){
   return s ? s.size : '';
 }
 
-// Post-dilation, with manual pending-answer override applied on top.
-// Returns null when unknown (pending question should be shown),
-// {type:'none', size:''} when the user confirmed no post-dilation,
-// or {type:'angioplasty'|'dcb'|'ivl', size:'Nmm'} when known.
-// Accepts either a full record ({compositeKey, treatment}) or a flattened
-// treatment segment (where treatment fields live on the object itself).
-function ngEffectivePostStent(record){
-  const ck = record.compositeKey;
-  if(ngManualPostStent[ck]) return ngManualPostStent[ck];
-  const t = record.treatment || record; // flattened segment or full treatment
-  if(!(t.stents && t.stents.length)) return null;
-  if(t.postDilType) return {type: t.postDilType, size: t.postDilSize || ''};
-  return null; // unknown — pending question will surface
-}
-
 // ---------- Rendering: parsed review list ----------
 function ngSummarizeRecord(r){
   const label = (ANATOMIC_BY_KEY[r.key]||{label:r.key}).label;
@@ -2222,24 +2573,6 @@ function ngRenderPending(){
           </div>`);
         }
       });
-      // Post-dilation question — shown when a stent was placed but post-dilation
-      // was not mentioned in the text and hasn't been answered yet.
-      if(r.treatment.stents.length && ngEffectivePostStent(r) === null){
-        const label = (ANATOMIC_BY_KEY[r.key]||{label:r.key}).label;
-        items.push(`<div class="pending-item">
-          <div class="ptext"><b>${ngSideLabel(r.side)} ${label} stent — post-dilation?</b></div>
-          <button data-ng-poststent-none="${r.compositeKey}">None</button>
-          <span style="display:inline-flex; align-items:center; gap:4px; margin-left:4px;">
-            <select data-ng-poststent-type-sel="${r.compositeKey}" style="display:inline-block; width:auto; padding:5px 8px; font-size:12.5px; border:1px solid var(--line); border-radius:3px;">
-              <option value="angioplasty">Balloon</option>
-              <option value="dcb">DCB</option>
-              <option value="ivl">IVL</option>
-            </select>
-            <input type="text" data-ng-poststent-size-input="${r.compositeKey}" placeholder="e.g. 7mm" style="width:75px; display:inline-block;">
-            <button data-ng-confirm-poststent="${r.compositeKey}">Save</button>
-          </span>
-        </div>`);
-      }
     }
     if(r.sideAmbiguous){
       const label = (ANATOMIC_BY_KEY[r.key]||{label:r.key}).label;
@@ -2291,21 +2624,6 @@ function ngRenderPending(){
   });
   list.querySelectorAll('[data-ng-us-guidance]').forEach(b=>{
     b.addEventListener('click', ()=>{ ngUsGuidanceAnswer = (b.dataset.ngUsGuidance === 'yes'); ngRenderAll(); });
-  });
-  // Post-dilation — "None" button saves immediately; type+size saves via "Save" button
-  list.querySelectorAll('[data-ng-poststent-none]').forEach(b=>{
-    b.addEventListener('click', ()=>{ ngManualPostStent[b.dataset.ngPoststentNone] = {type:'none', size:''}; ngRenderAll(); });
-  });
-  list.querySelectorAll('[data-ng-confirm-poststent]').forEach(b=>{
-    b.addEventListener('click', ()=>{
-      const ck = b.dataset.ngConfirmPoststent;
-      const sel = list.querySelector(`[data-ng-poststent-type-sel="${ck}"]`);
-      const inp = list.querySelector(`[data-ng-poststent-size-input="${ck}"]`);
-      const type = sel ? sel.value : 'angioplasty';
-      const size = inp ? inp.value.trim() : '';
-      ngManualPostStent[ck] = {type, size};
-      ngRenderAll();
-    });
   });
   list.querySelectorAll('[data-ng-sedation-none]').forEach(b=>{
     b.addEventListener('click', ()=>{ ngSedationAnswered = true; ngSedationMinutes = 0; ngRenderAll(); });
@@ -2490,71 +2808,6 @@ function ngGroupTreatedSegments(segs){
   return groups;
 }
 
-// Builds the structured intervention paragraph for a vessel group where
-// at least one segment received a stent. Produces the standard sequence:
-//   1. Lead (traversal sentence)
-//   2. Pre-stent prep sentences (atherectomy, pre-dilation balloon, IVL, DCB)
-//   3. "Follow-up imaging revealed >30% residual stenosis, so a [stent] was
-//      deployed [and post-dilated with a Xmm balloon]."
-//   4. Final result sentence.
-// Post-dilation is either auto-detected from parsed text, answered via the
-// pending section, or omitted silently when type is 'none'.
-function ngBuildStentedGroup(lead, g){
-  // Pre-stent prep — derived from already-parsed flags on the treatment segments
-  const preSentences = [];
-  const hasAtherectomy = g.some(s=>s.atherectomy);
-  const hasIVL = g.some(s=>s.lithotripsy);
-  const hasDCB = g.some(s=>s.dcb);
-  const balloonSize = g.map(s=>s.balloonSize).find(b=>b); // pre-dilation balloon
-
-  if(hasAtherectomy){
-    if(balloonSize) preSentences.push(`Atherectomy was performed and the vessel was pre-dilated with a ${balloonSize} balloon.`);
-    else preSentences.push('Atherectomy was performed.');
-  } else if(hasIVL){
-    preSentences.push(`The vessel was pre-treated with a${balloonSize ? ' '+balloonSize : ''} intravascular lithotripsy (IVL) balloon.`);
-  } else if(hasDCB){
-    preSentences.push(`The vessel was pre-treated with a${balloonSize ? ' '+balloonSize : ''} drug-coated balloon.`);
-  } else if(balloonSize){
-    preSentences.push(`The vessel was pre-dilated with a ${balloonSize} balloon.`);
-  }
-
-  // Collect all stents across segments in this group
-  const allStents = [];
-  g.forEach(s=>{
-    (s.stents||[]).forEach((st, i)=>{
-      const size = ngEffectiveStentSize({compositeKey:s.compositeKey, treatment:s}, i);
-      allStents.push({type: st.type, size});
-    });
-  });
-
-  // Post-dilation — manual override first, then parsed, then unknown
-  const firstStentedSeg = g.find(s=>s.stents && s.stents.length);
-  const postStent = firstStentedSeg ? ngEffectivePostStent(firstStentedSeg) : null;
-
-  // Build the stent deployment clause
-  const stentDescriptions = allStents.map(st=>{
-    const typeLabel = st.type === 'covered' ? 'covered' : (st.type === 'balloon-expandable' ? 'balloon-expandable' : 'self-expanding');
-    const sizeStr = st.size ? st.size+' ' : '[__x__mm] ';
-    return `a ${sizeStr}${typeLabel} stent was deployed`;
-  });
-  let stentClause = stentDescriptions.length
-    ? ngCapFirst(stentDescriptions.join(' and '))
-    : '[stent details — to complete]';
-
-  // Append post-dilation if known and not "none"
-  if(postStent && postStent.type !== 'none'){
-    const postSize = postStent.size ? postStent.size+' ' : '';
-    const postLabel = postStent.type === 'dcb' ? 'drug-coated balloon' : (postStent.type === 'ivl' ? 'IVL balloon' : 'balloon');
-    stentClause += ` and post-dilated with a ${postSize}${postLabel}`;
-  }
-  // If postStent===null (pending), no annotation added here — pending will prompt
-
-  const stentIntro = preSentences.length ? 'Follow-up imaging revealed >30% residual stenosis, so ' : '';
-  const stentSentence = stentIntro + stentClause + '.';
-  const resultText = `Final imaging revealed ${g[g.length-1].result || 'a good result'}.`;
-  return [lead, ...preSentences, stentSentence, resultText].join(' ');
-}
-
 function ngBuildInterventionForSide(side){
   const groups = ngGroupTreatedSegments(ngTreatedSegmentsForSide(side));
   if(!groups.length) return '';
@@ -2564,11 +2817,6 @@ function ngBuildInterventionForSide(side){
     const lead = idx===0
       ? `The ${labelPhrase} was then traversed with a catheter and wire successfully.`
       : `Attention was then turned to the ${labelPhrase}, which was traversed with a catheter and wire successfully.`;
-
-    const hasStent = g.some(s=>s.stents && s.stents.length);
-    if(hasStent) return ngBuildStentedGroup(lead, g);
-
-    // Non-stented vessel — flat clause list
     let clauses = [];
     g.forEach(s=>{ clauses = clauses.concat(ngModalityClauses({treatment:s, compositeKey:s.compositeKey})); });
     clauses = [...new Set(clauses)];
@@ -2584,15 +2832,16 @@ function ngAccessOrderedKeys(){
 }
 function ngAccessKeySide(accessKey){ return accessKey.startsWith('left') ? 'left' : 'right'; }
 function ngAccessKeyIsBrachial(accessKey){ return /Brachial$/.test(accessKey); }
-function ngAccessKeySiteName(accessKey){ return ngAccessKeyIsBrachial(accessKey) ? 'brachial artery' : 'femoral artery'; }
+function ngAccessKeySiteName(accessKey){ return ngAccessKeyIsBrachial(accessKey) ? 'brachial artery' : 'common femoral artery'; }
 
-// Names the access region in the note — "femoral artery" rather than
-// "common femoral artery" because antegrade sticks often land in the
-// proximal SFA, and over-specifying the vessel can conflict with the chart.
+// "Left/Right femoral" marks which leg/groin was accessed, not the exact
+// vessel punctured — antegrade sticks sometimes land in the proximal SFA
+// rather than the CFA proper, so the note names the general access region
+// rather than asserting a specific vessel that may not match the chart.
 function ngAccessSiteLabel(accessKey){
   return ngAccessKeyIsBrachial(accessKey)
     ? `${ngSideLabel(ngAccessKeySide(accessKey)).toLowerCase()} brachial artery`
-    : `${ngSideLabel(ngAccessKeySide(accessKey)).toLowerCase()} femoral artery`;
+    : `${ngSideLabel(ngAccessKeySide(accessKey)).toLowerCase()} common femoral artery`;
 }
 
 function ngGetXuJustificationText(){
@@ -2618,8 +2867,14 @@ function ngBuildAccessSentences(){
   }
   return keys.map((k, i)=>{
     const site = ngAccessSiteLabel(k);
-    const usPhrase = usGuidance ? ', with ultrasound guidance used to confirm vessel patency and real-time needle-entry visualization' : '';
-    return `1% lidocaine was used to infiltrate the skin overlying the ${site} and the artery was accessed with a micropuncture needle${usPhrase}. The needle was seen entering the artery and the artery was found to be patent. An image was preserved for the permanent record. A 4 French introducer sheath was placed.`;
+    const isBrachial = ngAccessKeyIsBrachial(k);
+    const side = ngAccessKeySide(k);
+    const treatedSides = ngComputeSides();
+    const approachPhrase = isBrachial
+      ? ' in standard retrograde fashion'
+      : (treatedSides.includes(side) ? ' in antegrade fashion' : ' in standard retrograde fashion, for up-and-over crossover access');
+    const usPhrase = (i===0 && usGuidance) ? ', with ultrasound guidance used to confirm vessel patency and real-time needle-entry visualization' : '';
+    return `1% lidocaine was used to infiltrate the skin overlying the ${site} and the artery was accessed${approachPhrase} with a micropuncture needle${usPhrase}. The needle was seen entering the artery and the artery was found to be patent. An image was preserved for the permanent record. A 4 French introducer sheath was placed.`;
   }).join(' ');
 }
 
@@ -2672,7 +2927,7 @@ function ngBuildProcedurePerformedList(){
   const accessKeys = ngAccessOrderedKeys();
   if(accessKeys.length){
     accessKeys.forEach((k,i)=>{
-      items.push(`${ngSideLabel(ngAccessKeySide(k))} ${ngAccessKeyIsBrachial(k)?'brachial':'femoral'} access cannulation${usGuidance ? ' with ultrasound guidance' : ''}`);
+      items.push(`${ngSideLabel(ngAccessKeySide(k))} ${ngAccessKeyIsBrachial(k)?'brachial':'femoral'} access cannulation${(i===0 && usGuidance) ? ' with ultrasound guidance' : ''}`);
     });
   } else {
     items.push(`[Access site] cannulation${usGuidance ? ' with ultrasound guidance' : ''}`);
@@ -2721,6 +2976,27 @@ function ngBuildProcedurePerformedList(){
 
 function ngGenerateNoteText(){
   const sides = ngComputeSides();
+  const accessKeys = ngAccessOrderedKeys();
+
+  // Build per-site closure closing sentence
+  let closingLine;
+  if(!accessKeys.length){
+    closingLine = 'Guidewires and catheters were removed. The introducer sheath was withdrawn and hemostasis was achieved with [closure method]. The patient tolerated the procedure without incident.';
+  } else if(accessKeys.length === 1){
+    const k = accessKeys[0];
+    const method = ngClosureForSite(k);
+    const closureText = method ? NG_CLOSURE_TEXT[method] : '[closure method]';
+    closingLine = `Guidewires and catheters were removed. The introducer sheath was withdrawn and hemostasis was achieved with ${closureText}. The patient tolerated the procedure without incident.`;
+  } else {
+    // Multiple access sites — one sentence per site
+    const siteSentences = accessKeys.map(k=>{
+      const method = ngClosureForSite(k);
+      const closureText = method ? NG_CLOSURE_TEXT[method] : '[closure method]';
+      const siteName = ngAccessSiteLabel(k);
+      return `The ${siteName} sheath was withdrawn and hemostasis was achieved with ${closureText}.`;
+    });
+    closingLine = `Guidewires and catheters were removed. ${siteSentences.join(' ')} The patient tolerated the procedure without incident.`;
+  }
 
   const procedurePerformed = ngBuildProcedurePerformedList().map((s,i)=>`${i+1}.\t${s}`).join('\n');
   const aortogramLine = ngAortogramIncluded() ? ngBuildAortogramFindingsLine() : '';
@@ -2729,7 +3005,6 @@ function ngGenerateNoteText(){
     const text = ngBuildInterventionForSide(side);
     return text ? `${sides.length===2 ? ngSideLabel(side)+' leg: ' : ''}${text}` : '';
   }).filter(Boolean).join(' ');
-  const closingLine = ngBuildClosingLine();
 
   return [
     'Post-op Diagnosis',
@@ -2853,7 +3128,8 @@ function ngSuggestCodes(){
   }
 
   if(ngResolvedUsGuidance()){
-    codes.push({code:'76937', desc:'Ultrasound guidance for vascular access — requires documented vessel patency, real-time needle-entry visualization, and a saved permanent image.'});
+    const usCode = ngBillingMode==='pro' ? '76937-26' : '76937';
+    codes.push({code:usCode, desc:'Ultrasound guidance for vascular access — requires documented vessel patency, real-time needle-entry visualization, and a saved permanent image.'+(ngBillingMode==='pro'?' (pro: -26)':'')});
   } else if(ngUsGuidanceAnswer===null && !/ultrasound[\s-]?(guid|guided)/i.test(ngCombinedText().toLowerCase())){
     flags.push('⏳ Ultrasound guidance not yet answered — see "Needs your input" above (or confirm none was used).');
   }
@@ -2869,18 +3145,22 @@ function ngSuggestCodes(){
       codes.push({code:'99152', desc:`Moderate sedation, same physician, initial 15 minutes (intraservice time ${sedMin} min${sedApprox ? ', documented as approximate' : ''})`});
       let remaining = sedMin - 15, units = 0;
       while(remaining >= 8){ units++; remaining -= 15; }
-      if(units>0) flags.push(`+99153 x${units} (each additional 15 min of sedation) is facility-only in this hospital-outpatient setting — not included in the professional code list above; verify on the facility side.`);
-      if(sedApprox) flags.push(`Sedation time was documented with approximate language (e.g. "greater than"/"about") near ${sedMin} min, not stated exactly — confirm the actual intraservice time before submitting, since crossing certain thresholds changes whether an additional +99153 unit applies.`);
+      if(units>0){
+        if(ngBillingMode==='facility') codes.push({code:'+99153', desc:`Moderate sedation, additional ×${units} (facility)`});
+        else flags.push(`+99153 x${units} (each additional 15 min of sedation) is facility-only in this hospital-outpatient setting — not included in the professional code list above; verify on the facility side.`);
+      }
+      if(sedApprox) flags.push(`Sedation time was documented with approximate language (e.g. "greater than"/"about") near ${sedMin} min, not stated exactly — confirm the actual intraservice time before submitting.`);
     }
   }
 
   const tier = ngAortogramTier();
   if(ngAortogramIncluded()){
-    codes.push({code:'75625-26', desc:'Aortography, abdominal, by catheter, RS&I — confirm the aortogram independently characterized findings (not just confirmatory imaging) before submitting.'});
+    const imgPro = ngBillingMode==='pro';
+    codes.push({code: imgPro?'75625-26':'75625', desc:'Aortography, abdominal, by catheter, RS&I — confirm the aortogram independently characterized findings (not just confirmatory imaging) before submitting.'+(imgPro?' (pro: -26)':'')});
     if(ngComputeSides().length===2){
-      codes.push({code:'75716-26-XU', desc:'Angiography, extremity, bilateral, RS&I — confirm the leg angiogram findings independently drove the treatment decision before submitting.'});
+      codes.push({code: imgPro?'75716-26-XU':'75716-XU', desc:'Angiography, extremity, bilateral, RS&I — confirm the leg angiogram findings independently drove the treatment decision before submitting.'+(imgPro?' (pro: -26)':'')});
     } else {
-      codes.push({code:'75710-26-XU', desc:'Angiography, extremity, unilateral, RS&I — confirm the leg angiogram findings independently drove the treatment decision before submitting.'});
+      codes.push({code: imgPro?'75710-26-XU':'75710-XU', desc:'Angiography, extremity, unilateral, RS&I — confirm the leg angiogram findings independently drove the treatment decision before submitting.'+(imgPro?' (pro: -26)':'')});
     }
   } else if(tier === 'ask' && ngAortogramTierAnswer===null){
     flags.push('⏳ Aortogram / leg angiogram inclusion not yet answered — see "Needs your input" above.');
@@ -2915,48 +3195,53 @@ function ngRenderAll(){
 }
 
 // ---------- Wiring ----------
-attachDictation('ngFindingsInput', 'ngFindingsDictateBtn', 'ngFindingsDictateStatus', ngRenderAll);
-attachDictation('ngInterventionInput', 'ngInterventionDictateBtn', 'ngInterventionDictateStatus', ngRenderAll);
 document.getElementById('ngFindingsInput').addEventListener('input', ngRenderAll);
 document.getElementById('ngInterventionInput').addEventListener('input', ngRenderAll);
 
-function ngRenderClosureSection(){
-  const el = document.getElementById('ngClosureSection');
-  if(!ngPrimaryAccess.size){ el.innerHTML = ''; return; }
+function ngRenderClosurePickers(){
+  const container = document.getElementById('ngClosureContainer');
+  container.innerHTML = '';
+  const femorals = ngFemoralAccessKeys();
+  const brachials = ngBrachialAccessKeys();
+  const closureOptions = ['manual','perclose','mynx','angioseal'];
 
-  if(ngIsClosureAutoManual()){
-    el.innerHTML = `<label>Closure</label><div class="hint" style="margin-top:4px;">Brachial-only access — manual pressure at arm puncture site.</div>`;
+  if(!ngPrimaryAccess.size){
+    // No access selected yet — nothing to show
     return;
   }
 
-  const femoralKeys = [...ngPrimaryAccess].filter(k=>!ngAccessKeyIsBrachial(k));
-  const brachialKeys = [...ngPrimaryAccess].filter(k=>ngAccessKeyIsBrachial(k));
-  const CLOSURE_OPTIONS = [
-    {val:'manual', label:'Manual'},
-    {val:'perclose', label:'Perclose'},
-    {val:'mynx', label:'Mynx'},
-    {val:'angioseal', label:'Angio-Seal'}
-  ];
-
-  const rows = femoralKeys.map(k=>{
-    const sideLabel = ngSideLabel(ngAccessKeySide(k));
-    const current = ngClosureByAccess[k];
-    const chips = CLOSURE_OPTIONS.map(o=>`<span class="chip${current===o.val?' on':''}" data-closure-key="${k}" data-closure-val="${o.val}">${o.label}</span>`).join('');
-    return `<label>${sideLabel} femoral closure</label><div class="chiprow" style="margin-bottom:4px;">${chips}</div>`;
-  }).join('');
-
-  const brachialNote = brachialKeys.length
-    ? `<div class="hint" style="margin-top:4px;">Brachial site${brachialKeys.length>1?'s':''}: manual pressure (automatic).</div>`
-    : '';
-
-  el.innerHTML = rows + brachialNote;
-
-  el.querySelectorAll('[data-closure-key]').forEach(chip=>{
-    chip.addEventListener('click', ()=>{
-      ngClosureByAccess[chip.dataset.closureKey] = chip.dataset.closureVal;
-      ngRenderClosureSection();
-      ngRenderAll();
+  // One row per femoral site
+  femorals.forEach(accessKey => {
+    const label = document.createElement('label');
+    label.textContent = `Closure — ${NG_ACCESS_SITE_LABEL[accessKey]}`;
+    container.appendChild(label);
+    const row = document.createElement('div');
+    row.className = 'chiprow';
+    row.style.marginBottom = '10px';
+    closureOptions.forEach(method => {
+      const chip = document.createElement('span');
+      chip.className = 'chip' + (ngClosureByAccess[accessKey] === method ? ' on' : '');
+      chip.textContent = NG_CLOSURE_LABEL[method];
+      chip.addEventListener('click', () => {
+        ngClosureByAccess[accessKey] = method;
+        ngRenderClosurePickers();
+        ngRenderAll();
+      });
+      row.appendChild(chip);
     });
+    container.appendChild(row);
+  });
+
+  // Brachial sites: show auto-manual note, no picker
+  brachials.forEach(accessKey => {
+    const label = document.createElement('label');
+    label.textContent = `Closure — ${NG_ACCESS_SITE_LABEL[accessKey]}`;
+    container.appendChild(label);
+    const note = document.createElement('div');
+    note.className = 'hint';
+    note.style.marginBottom = '10px';
+    note.textContent = 'Manual pressure (automatic for brachial access)';
+    container.appendChild(note);
   });
 }
 
@@ -2967,13 +3252,19 @@ function ngRenderAccessChips(){
   document.querySelectorAll('#ngSecondaryAccessChips [data-secondary-access]').forEach(chip=>{
     chip.classList.toggle('on', ngSecondaryAccess.has(chip.dataset.secondaryAccess));
   });
-  ngRenderClosureSection();
+  ngRenderClosurePickers();
 }
 
 document.querySelectorAll('#ngPrimaryAccessChips [data-primary-access]').forEach(chip=>{
   chip.addEventListener('click', ()=>{
     const k = chip.dataset.primaryAccess;
-    if(ngPrimaryAccess.has(k)) ngPrimaryAccess.delete(k); else ngPrimaryAccess.add(k);
+    if(ngPrimaryAccess.has(k)){
+      ngPrimaryAccess.delete(k);
+      // Remove closure selection for deselected site
+      delete ngClosureByAccess[k];
+    } else {
+      ngPrimaryAccess.add(k);
+    }
     ngRenderAccessChips();
     ngRenderAll();
   });
@@ -3000,68 +3291,18 @@ ngRenderAll();
 // ---------- init ----------
 renderAll();
 
-// ---------- Tab 4 AI Normalize ----------
+// ---------- Tab 2 AI Normalize toolbar visibility ----------
 if(PROXY_URL){
   document.getElementById('ngFindingsNormalizeToolbar').style.display='';
   document.getElementById('ngInterventionNormalizeToolbar').style.display='';
 }
 
-function buildDiffHtml(raw, normalized, diffElId){
-  const diffEl = document.getElementById(diffElId);
-  diffEl.innerHTML='';
-  diffEl.dataset.normalized = normalized;
-  const aw=raw.split(/(\s+)/), bw=normalized.split(/(\s+)/);
-  const m=aw.length,n=bw.length;
-  const dp=Array.from({length:m+1},()=>new Array(n+1).fill(0));
-  for(let i=1;i<=m;i++) for(let j=1;j<=n;j++) dp[i][j]=aw[i-1].toLowerCase()===bw[j-1].toLowerCase()?dp[i-1][j-1]+1:Math.max(dp[i-1][j],dp[i][j-1]);
-  const seq=[];let i=m,j=n;
-  while(i>0||j>0){
-    if(i>0&&j>0&&aw[i-1].toLowerCase()===bw[j-1].toLowerCase()){seq.unshift({t:'same',v:bw[j-1]});i--;j--;}
-    else if(j>0&&(i===0||dp[i][j-1]>=dp[i-1][j])){seq.unshift({t:'add',v:bw[j-1]});j--;}
-    else{seq.unshift({t:'rem',v:aw[i-1]});i--;}
-  }
-  seq.forEach(d=>{
-    const span=document.createElement('span');
-    span.textContent=d.v;
-    if(d.t==='rem') span.style.cssText='background:#FDE8DF;color:#8B3A1E;text-decoration:line-through;border-radius:2px;padding:0 1px;';
-    if(d.t==='add') span.style.cssText='background:#DFF0EE;color:#1D5752;font-weight:600;border-radius:2px;padding:0 1px;';
-    diffEl.appendChild(span);
-  });
-}
-
-async function runNormalize(inputId, diffId, resultCardId, statusId, btnId){
-  const raw = document.getElementById(inputId).value.trim();
-  if(!raw){ document.getElementById(statusId).textContent='Enter some text first.'; return; }
-  if(!PROXY_URL) return;
-  const btn=document.getElementById(btnId), statusEl=document.getElementById(statusId);
-  btn.disabled=true; statusEl.textContent='Fixing dictation errors…';
-  document.getElementById(resultCardId).style.display='none';
-  try{
-    const res=await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:raw})});
-    const data=await res.json();
-    if(!res.ok) throw new Error(data.error||'Error '+res.status);
-    buildDiffHtml(raw, data.normalized, diffId);
-    document.getElementById(resultCardId).style.display='';
-    statusEl.textContent='';
-  }catch(e){ statusEl.textContent='Error: '+e.message; }
-  finally{ btn.disabled=false; }
-}
-
-// Findings
-document.getElementById('ngFindingsNormalizeBtn')?.addEventListener('click',()=>runNormalize('ngFindingsInput','ngFindingsDiff','ngFindingsNormalizeResult','ngFindingsNormalizeStatus','ngFindingsNormalizeBtn'));
-document.getElementById('ngFindingsApplyBtn')?.addEventListener('click',()=>{
-  const norm=document.getElementById('ngFindingsDiff').dataset.normalized;
-  if(norm){document.getElementById('ngFindingsInput').value=norm;document.getElementById('ngFindingsInput').dispatchEvent(new Event('input'));document.getElementById('ngFindingsNormalizeResult').style.display='none';}
+// Copy codes button (Tab 1)
+document.getElementById('copyCodesBtn')?.addEventListener('click',()=>{
+  const items = document.querySelectorAll('#codeOut .code');
+  if(!items.length) return;
+  navigator.clipboard.writeText(Array.from(items).map(el=>el.textContent).join('\n')).catch(()=>{});
 });
-document.getElementById('ngFindingsDismissBtn')?.addEventListener('click',()=>document.getElementById('ngFindingsNormalizeResult').style.display='none');
-
-// Intervention
-document.getElementById('ngInterventionNormalizeBtn')?.addEventListener('click',()=>runNormalize('ngInterventionInput','ngInterventionDiff','ngInterventionNormalizeResult','ngInterventionNormalizeStatus','ngInterventionNormalizeBtn'));
-document.getElementById('ngInterventionApplyBtn')?.addEventListener('click',()=>{
-  const norm=document.getElementById('ngInterventionDiff').dataset.normalized;
-  if(norm){document.getElementById('ngInterventionInput').value=norm;document.getElementById('ngInterventionInput').dispatchEvent(new Event('input'));document.getElementById('ngInterventionNormalizeResult').style.display='none';}
-});
-document.getElementById('ngInterventionDismissBtn')?.addEventListener('click',()=>document.getElementById('ngInterventionNormalizeResult').style.display='none');
 
 </script>
 
