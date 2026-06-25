@@ -1447,6 +1447,11 @@ function buildRenalPending(det) {
   if(det.diagnosticAngio&&!det.trueDiagnostic)
     pending.push({id:'r_diag',text:'Was this a true independent diagnostic arteriogram (prior study unavailable/inadequate)?',options:['Yes — bill with XU modifier','No — bundled'],
       resolve:(ans)=>{det.trueDiagnostic=ans.startsWith('Yes');det.diagnosticAngio=true;}});
+  // If diagnostic angiogram only (no intervention), ask about catheter selectivity for 36251/36253
+  if(det.diagnosticAngio && !det.stent && !det.pta && det.cathSelectivity===undefined)
+    pending.push({id:'r_cath',text:'Diagnostic renal angiogram only (no intervention) — how far was the catheter advanced?',
+      options:['Main renal artery only (1st order → 36251/36252)','Into branch vessels (2nd order+ → 36253/36254)'],
+      resolve:(ans)=>{det.cathSelectivity=ans.includes('branch')?'second':'first';}});
   if(det.sedationMin===0)
     pending.push({id:'r_sed',text:'Moderate sedation time (minutes)? Enter 0 if none.',type:'number',resolve:(val)=>{det.sedationMin=parseInt(val)||0;}});
   return pending;
@@ -1459,15 +1464,46 @@ function buildRenalCodes(det, billing) {
     codes.push({code:'37236',desc:'Arterial stent, initial vessel (renal/visceral)'});
     if(det.bilateral) codes.push({code:'+37237',desc:'Arterial stent, additional vessel (contralateral renal)'+(pro?'':' ⚠️ APC packaged')});
     flags.push({type:'prompt',text:'Stent device C-code required on facility claim (e.g. C1874/C1887).'});
+    // When intervention is done, catheterization is bundled into intervention code — use 36245/36247
+    if(det.diagnosticAngio&&det.trueDiagnostic){
+      const mod=pro?'-26-XU':'-XU';
+      if(det.renal){codes.push({code:det.bilateral?`75724${mod}`:`75722${mod}`,desc:`Renal arteriogram${det.bilateral?', bilateral':''} — diagnostic drove intervention`+(pro?' (pro: -26)':'')});}
+      else codes.push({code:`75726${mod}`,desc:'Visceral arteriogram — diagnostic drove intervention'+(pro?' (pro: -26)':'')});
+      // Catheterization on intervention side is bundled into stent code — use component codes only if selectivity was higher than needed
+      flags.push({type:'flag',text:'Diagnostic arteriogram XU modifier: confirm prior study unavailable/inadequate; findings independently characterized pathology and drove treatment decision. Catheterization code bundled into stent code (37236) — no separate 36251 needed on intervention side.'});
+    }
   } else if(det.pta){
     codes.push({code:'37246',desc:'Balloon angioplasty, initial vessel (renal/visceral)'});
     if(det.bilateral) codes.push({code:'+37247',desc:'Balloon angioplasty, additional vessel'+(pro?'':' ⚠️ APC packaged')});
-  }
-  if(det.diagnosticAngio&&det.trueDiagnostic){
-    const mod=pro?'-26-XU':'-XU';
-    if(det.renal){codes.push({code:det.bilateral?`75724${mod}`:`75722${mod}`,desc:`Renal arteriogram${det.bilateral?', bilateral':''}`+(pro?' (pro: -26)':'')});}
-    else codes.push({code:`75726${mod}`,desc:'Visceral arteriogram'+(pro?' (pro: -26)':'')});
-    flags.push({type:'flag',text:'Diagnostic arteriogram XU modifier: confirm prior study unavailable/inadequate; findings independently characterized pathology and drove treatment decision.'});
+    if(det.diagnosticAngio&&det.trueDiagnostic){
+      const mod=pro?'-26-XU':'-XU';
+      if(det.renal){codes.push({code:det.bilateral?`75724${mod}`:`75722${mod}`,desc:`Renal arteriogram${det.bilateral?', bilateral':''} — diagnostic drove intervention`+(pro?' (pro: -26)':'')});}
+      else codes.push({code:`75726${mod}`,desc:'Visceral arteriogram — diagnostic drove intervention'+(pro?' (pro: -26)':'')});
+      flags.push({type:'flag',text:'Diagnostic arteriogram XU modifier: confirm prior study unavailable/inadequate; findings independently characterized pathology and drove treatment decision.'});
+    }
+  } else if(det.diagnosticAngio){
+    // Diagnostic angiogram only — no intervention — must bill catheterization code + angiogram code
+    if(det.trueDiagnostic){
+      const mod=pro?'-26-XU':'-XU';
+      // Renal uses dedicated 36251-36254 series (bundled — includes catheterization + angiography)
+      if(det.renal){
+        const isBilateral = det.bilateral;
+        const isSecondOrder = det.cathSelectivity === 'second';
+        if(isSecondOrder){
+          codes.push({code:isBilateral?'36254':'36253',desc:`Selective renal artery catheterization, 2nd order or higher${isBilateral?', bilateral':''} — BUNDLED: includes catheterization + angiography (no separate 75722/75724 needed)`});
+        } else {
+          codes.push({code:isBilateral?'36252':'36251',desc:`Selective renal artery catheterization, 1st order${isBilateral?', bilateral':''} — BUNDLED: includes catheterization + angiography (no separate 75722/75724 needed)`});
+        }
+        flags.push({type:'flag',text:'Renal artery catheterization codes (36251-36254) are BUNDLED — they include both the catheterization work AND the angiographic supervision/interpretation. Do NOT also bill 75722/75724 when using these codes. Confirm no intervention was performed; if stent or angioplasty was done, drop back to 36245/37236 instead.'});
+      } else {
+        // Visceral diagnostic only — bill 36245 (first order off aorta for celiac/SMA/IMA) + 75726
+        codes.push({code:'36245',desc:'Selective catheterization, 1st order abdominal branch (celiac/SMA/IMA)'});
+        codes.push({code:`75726${mod}`,desc:'Visceral arteriogram, diagnostic'+(pro?' (pro: -26)':'')});
+        flags.push({type:'flag',text:'Each visceral vessel (celiac, SMA, IMA) is a separate vascular family — bill 36245 + 75726 for each vessel catheterized and imaged. If catheter went beyond the main trunk into branches, upgrade to 36246 (2nd order) or 36247 (3rd order).'});
+      }
+    } else {
+      flags.push({type:'flag',text:'Diagnostic angiogram detected but prior study status unknown — answer the pending question above to determine whether XU modifier applies.'});
+    }
   }
   if(det.ivus){codes.push({code:'37252',desc:'IVUS, initial vessel'});flags.push({type:'prompt',text:'IVUS: confirm saved permanent image with documented findings.'});}
   if(det.sedationMin>=10){
@@ -1788,20 +1824,40 @@ function suggestCodes(){
   // ---- Diagnostic aortogram / extremity angiogram: auto-detect, else require an explicit answer ----
   const {aortogramMentioned, bilateralLeg, unilateralLeg, anyAutoDetected} = detectAortogramSignals(noteText);
 
-  let resolvedAorto = null; // {aortogram, bilateral, unilateral} once known one way or another
+  let resolvedAorto = null; // {aortogram, bilateral, bilateralXU, unilateral, unilateralPlusContralateral} once known
   if(anyAutoDetected){
-    resolvedAorto = {aortogram: aortogramMentioned, bilateral: bilateralLeg, unilateral: unilateralLeg};
+    resolvedAorto = {aortogram: aortogramMentioned, bilateral: bilateralLeg, bilateralXU: false, unilateral: unilateralLeg, unilateralPlusContralateral: false};
   } else if(caseAnswers.aortogram !== null){
     const ans = caseAnswers.aortogram;
-    resolvedAorto = {aortogram: ans==='aortogram' || ans==='both', bilateral: ans==='bilateral', unilateral: ans==='unilateral'};
+    resolvedAorto = {
+      aortogram: ans==='aortogram' || ans==='both',
+      bilateral: ans==='bilateral',
+      bilateralXU: ans==='bilateral',
+      unilateral: ans==='unilateral' || ans==='both',
+      unilateralPlusContralateral: ans==='unilateral-plus-contralateral-dx'
+    };
   }
 
   if(resolvedAorto){
     if(resolvedAorto.aortogram){
       codes.push({code:'75625-26', desc:'Aortography, abdominal, by catheter, RS&I — confirm the aortogram independently characterized findings (not just confirmatory imaging) before submitting.'});
     }
-    if(resolvedAorto.bilateral){
+    if(resolvedAorto.bilateralXU){
+      // Both legs had diagnostic angiogram that drove intervention
+      codes.push({code:'75710-26-RT-XU', desc:'Angiography, right lower extremity, RS&I — angiogram findings drove right-side intervention.'});
+      codes.push({code:'75710-26-LT-XU', desc:'Angiography, left lower extremity, RS&I — angiogram findings drove left-side intervention.'});
+    } else if(resolvedAorto.bilateral){
       codes.push({code:'75716-26-XU', desc:'Angiography, extremity, bilateral, RS&I — confirm the leg angiogram findings independently drove the treatment decision (not just intraprocedural roadmapping) before submitting.'});
+    } else if(resolvedAorto.unilateralPlusContralateral){
+      // Intervention one side (XU), contralateral diagnostic only (no XU) + selective cath code
+      const rows = vesselRows;
+      const treatedSides = new Set();
+      rows.forEach(v=>{ if(hasModality(v) && v.side) treatedSides.add(v.side); });
+      const txSide = treatedSides.size===1 ? [...treatedSides][0].toUpperCase() : 'RT';
+      const dxSide = txSide === 'RT' ? 'LT' : 'RT';
+      codes.push({code:`75710-26-${txSide}-XU`, desc:`Angiography, ${txSide==='RT'?'right':'left'} lower extremity, RS&I — angiogram findings drove intervention on this side (XU modifier).`});
+      codes.push({code:`75710-26-${dxSide}`, desc:`Angiography, ${dxSide==='LT'?'left':'right'} lower extremity, RS&I — diagnostic only, no intervention on this side (no XU modifier).`});
+      flags.push(`Contralateral diagnostic angiogram (${dxSide} leg, no intervention): also bill the appropriate selective catheterization code for the catheter work done on that side — 36245 (catheter to common iliac), 36246 (external iliac / common femoral), or 36247 (SFA/profunda or beyond) — depending on how far the catheter was advanced.`);
     } else if(resolvedAorto.unilateral){
       codes.push({code:'75710-26-XU', desc:'Angiography, extremity, unilateral, RS&I — confirm the leg angiogram findings independently drove the treatment decision (not just intraprocedural roadmapping) before submitting.'});
     }
@@ -1845,12 +1901,13 @@ function renderPending(){
   if(!aortogramMentioned && !bilateralLeg && !unilateralLeg && caseAnswers.aortogram===null){
     items.push(`
       <div class="pending-item">
-        <div class="ptext"><b>Aortogram / leg angiogram performed?</b></div>
+        <div class="ptext"><b>Aortogram / leg angiogram performed?</b> If a true diagnostic study was performed (prior unavailable, findings drove the decision to intervene), select what was done.</div>
         <button data-confirm-case="aortogram" data-value="none">None</button>
-        <button data-confirm-case="aortogram" data-value="aortogram">Aortogram</button>
-        <button data-confirm-case="aortogram" data-value="unilateral">Leg (unilateral)</button>
-        <button data-confirm-case="aortogram" data-value="bilateral">Leg (bilateral)</button>
-        <button data-confirm-case="aortogram" data-value="both">Both</button>
+        <button data-confirm-case="aortogram" data-value="aortogram">Aortogram only</button>
+        <button data-confirm-case="aortogram" data-value="unilateral">Leg angio (unilateral, drove intervention)</button>
+        <button data-confirm-case="aortogram" data-value="bilateral">Leg angio (bilateral, drove intervention)</button>
+        <button data-confirm-case="aortogram" data-value="both">Aortogram + leg angio</button>
+        <button data-confirm-case="aortogram" data-value="unilateral-plus-contralateral-dx">Leg angio on intervention side (XU) + contralateral diagnostic only</button>
       </div>
     `);
   }
@@ -2297,6 +2354,7 @@ let ngSecondaryAccess = new Set();   // subset of 'pt','at','popliteal','peronea
 // Brachial sites are always 'manual' and never stored here.
 let ngClosureByAccess = {};          // e.g. {rightFemoral:'perclose', leftFemoral:'manual'}
 let ngAortogramTierAnswer = null;    // null | true | false — manual answer for the "ask" tier (crossover or bilateral below-iliac treatment)
+let ngLegAngiogramAnswer = null;     // null | true | false — did the leg angiogram independently drive the intervention?
 
 function ngFindingsText(){ return document.getElementById('ngFindingsInput').value || ''; }
 function ngInterventionText(){ return document.getElementById('ngInterventionInput').value || ''; }
@@ -2422,6 +2480,23 @@ function ngAortogramIncluded(){
   if(tier === 'auto') return true;
   if(tier === 'ask') return ngAortogramTierAnswer === true;
   return false;
+}
+
+// Leg angiogram (75710/75716) tier — separate from aortogram.
+// Always ask when there is below-iliac treatment, regardless of access pattern.
+// The user confirms whether the angiogram findings independently drove intervention.
+//  - 'none' — no below-iliac treatment, nothing to ask
+//  - 'ask'  — below-iliac treatment present, ask whether leg angiogram drove intervention
+function ngLegAngiogramTier(){
+  const treatedTerritories = new Set();
+  ngRecords().forEach(r=>{
+    if(ngHasTreatment(r.treatment)) treatedTerritories.add(NOTEGEN_TERRITORY_BY_KEY[r.key]);
+  });
+  const hasBelowIliac = treatedTerritories.has('femoropopliteal') || treatedTerritories.has('tibioperoneal') || treatedTerritories.has('inframalleolar');
+  return hasBelowIliac ? 'ask' : 'none';
+}
+function ngLegAngiogramIncluded(){
+  return ngLegAngiogramTier() === 'ask' && ngLegAngiogramAnswer === true;
 }
 
 // Unified per-vessel view (unfiltered except for explicit-normal vessels —
@@ -2591,15 +2666,22 @@ function ngRenderPending(){
     const sedDetected = extractSedationMinutes(ngInterventionText() + ' ' + ngFindingsText());
     if(sedDetected===null && !ngSedationAnswered){
       items.push(`<div class="pending-item">
-        <div class="ptext"><b>Sedation time?</b> (minutes)</div>
+        <div class="ptext"><b>Sedation time?</b> Type minutes and press Enter (or tap away)</div>
         <input type="number" id="ngSedMinInput" min="0" placeholder="minutes" style="width:90px; display:inline-block;">
-        <button id="ngConfirmSedMinBtn">Save</button>
         <button data-ng-sedation-none="1">No sedation</button>
+      </div>`);
+    }
+    const legAngioTier = ngLegAngiogramTier();
+    if(legAngioTier !== 'none' && ngLegAngiogramAnswer === null){
+      items.push(`<div class="pending-item">
+        <div class="ptext"><b>Diagnostic leg angiogram performed?</b> Did the angiogram findings independently characterize the anatomy and drive the decision to intervene?</div>
+        <button data-ng-legangio="yes">Yes — drove intervention</button>
+        <button data-ng-legangio="no">No</button>
       </div>`);
     }
     if(ngAortogramTier()==='ask' && ngAortogramTierAnswer===null){
       items.push(`<div class="pending-item">
-        <div class="ptext"><b>Diagnostic aortogram / leg angiogram performed?</b> Below-iliac treatment with crossover or bilateral access doesn't auto-include this — confirm.</div>
+        <div class="ptext"><b>Diagnostic aortogram performed?</b> Below-iliac treatment with crossover or bilateral access doesn't auto-include this — confirm.</div>
         <button data-ng-aortogram-tier="yes">Yes, performed</button>
         <button data-ng-aortogram-tier="no">No</button>
       </div>`);
@@ -2628,9 +2710,22 @@ function ngRenderPending(){
   list.querySelectorAll('[data-ng-sedation-none]').forEach(b=>{
     b.addEventListener('click', ()=>{ ngSedationAnswered = true; ngSedationMinutes = 0; ngRenderAll(); });
   });
+  list.querySelectorAll('[data-ng-legangio]').forEach(b=>{
+    b.addEventListener('click', ()=>{ ngLegAngiogramAnswer = (b.dataset.ngLegangio === 'yes'); ngRenderAll(); });
+  });
   list.querySelectorAll('[data-ng-aortogram-tier]').forEach(b=>{
     b.addEventListener('click', ()=>{ ngAortogramTierAnswer = (b.dataset.ngAortogramTier === 'yes'); ngRenderAll(); });
   });
+  // Sedation auto-commit on Enter or blur — no Save button needed
+  const sedInput = document.getElementById('ngSedMinInput');
+  if(sedInput){
+    function commitSedation(){
+      const val = parseInt(sedInput.value, 10);
+      if(!isNaN(val) && val>=0){ ngSedationAnswered = true; ngSedationMinutes = val; ngRenderAll(); }
+    }
+    sedInput.addEventListener('keydown', e=>{ if(e.key==='Enter') commitSedation(); });
+    sedInput.addEventListener('blur', commitSedation);
+  }
   const sedBtn = document.getElementById('ngConfirmSedMinBtn');
   if(sedBtn){
     sedBtn.addEventListener('click', ()=>{
@@ -2845,16 +2940,17 @@ function ngAccessSiteLabel(accessKey){
 }
 
 function ngGetXuJustificationText(){
+  if(ngLegAngiogramAnswer === true){
+    const sides = ngComputeSides();
+    if(sides.length === 2)
+      return 'Diagnostic angiography of both lower extremities was performed; findings independently characterized the anatomy and guided the decision to intervene on both sides.';
+    return 'Diagnostic lower extremity angiography was performed; findings independently characterized the anatomy and guided the decision to intervene.';
+  }
   const tier = ngAortogramTier();
   if(tier === 'auto'){
     return ngHasBrachialAccess()
       ? 'Diagnostic angiography was performed via the brachial approach to map the aortoiliac and lower extremity runoff anatomy and independently guide the decision to intervene.'
       : 'Diagnostic aortoiliac angiography was performed given iliac system involvement; findings independently characterized the anatomy and guided the decision to intervene.';
-  }
-  if(tier === 'ask' && ngAortogramTierAnswer === true){
-    return ngComputeSides().length === 2
-      ? 'Diagnostic angiography of the contralateral lower extremity was performed to characterize bilateral runoff anatomy and independently guide the decision to intervene.'
-      : 'Diagnostic angiography was performed to characterize the runoff anatomy of the crossover-accessed limb and independently guide the decision to intervene.';
   }
   return '';
 }
@@ -2888,14 +2984,18 @@ function ngBuildSecondaryAccessSentence(){
 
 function ngBuildProcedureDescription(){
   const sides = ngComputeSides();
-  const accessIncludesIpsilateral = sides.some(s=>ngFemoralAccessSides().includes(s));
 
   let p = `The patient was brought to the fluoro suite and placed supine on the table. Appropriate monitoring devices were then placed. The patient was prepped and draped in usual sterile fashion. ${ngBuildAccessSentences()}`;
 
-  const tier = ngAortogramTier();
-  const included = ngAortogramIncluded();
-  if(included){
+  const aortogramIncluded = ngAortogramIncluded();
+  const legAngiogramIncluded = ngLegAngiogramIncluded();
+  const aortogramTier = ngAortogramTier();
+  const legAngiogramTier = ngLegAngiogramTier();
+
+  if(aortogramIncluded){
     p += ` A flush catheter and glidewire were then advanced under fluoroscopic guidance${ngHasBrachialAccess() && !ngHasFemoralAccess() ? ' down the descending thoracic and abdominal aorta' : ' into the aorta'} and an aortogram was then performed.`;
+  }
+  if(legAngiogramIncluded){
     if(sides.length===2){
       p += ` The catheter and wire were then manipulated as needed and a bilateral lower extremity angiogram was then performed.`;
     } else {
@@ -2908,11 +3008,14 @@ function ngBuildProcedureDescription(){
     }
     const xuText = ngGetXuJustificationText();
     if(xuText) p += ` ${xuText}`;
-  } else if(tier==='ask'){
-    p += ` [Aortogram / leg angiogram inclusion pending — answer "Diagnostic aortogram / leg angiogram performed?" above.]`;
-  } else {
-    const legSide = sides[0];
-    p += ` A catheter and wire were then advanced under fluoroscopic guidance directly into the ${legSide} leg for the intervention below.`;
+  }
+  if(!aortogramIncluded && !legAngiogramIncluded){
+    if(aortogramTier==='ask' || legAngiogramTier==='ask'){
+      p += ` [Aortogram / leg angiogram inclusion pending — answer "Needs your input" above.]`;
+    } else {
+      const legSide = sides[0] || 'right';
+      p += ` A catheter and wire were then advanced under fluoroscopic guidance directly into the ${legSide} leg for the intervention below.`;
+    }
   }
 
   p += ngBuildSecondaryAccessSentence();
@@ -2937,6 +3040,8 @@ function ngBuildProcedurePerformedList(){
   }
   if(ngAortogramIncluded()){
     items.push('Aortogram');
+  }
+  if(ngLegAngiogramIncluded()){
     if(sides.length===2){
       items.push('Bilateral lower extremity angiogram');
     } else {
@@ -3157,13 +3262,32 @@ function ngSuggestCodes(){
   if(ngAortogramIncluded()){
     const imgPro = ngBillingMode==='pro';
     codes.push({code: imgPro?'75625-26':'75625', desc:'Aortography, abdominal, by catheter, RS&I — confirm the aortogram independently characterized findings (not just confirmatory imaging) before submitting.'+(imgPro?' (pro: -26)':'')});
-    if(ngComputeSides().length===2){
-      codes.push({code: imgPro?'75716-26-XU':'75716-XU', desc:'Angiography, extremity, bilateral, RS&I — confirm the leg angiogram findings independently drove the treatment decision before submitting.'+(imgPro?' (pro: -26)':'')});
-    } else {
-      codes.push({code: imgPro?'75710-26-XU':'75710-XU', desc:'Angiography, extremity, unilateral, RS&I — confirm the leg angiogram findings independently drove the treatment decision before submitting.'+(imgPro?' (pro: -26)':'')});
-    }
   } else if(tier === 'ask' && ngAortogramTierAnswer===null){
-    flags.push('⏳ Aortogram / leg angiogram inclusion not yet answered — see "Needs your input" above.');
+    flags.push('⏳ Aortogram inclusion not yet answered — see "Needs your input" above.');
+  }
+
+  // Leg angiogram codes — separate from aortogram.
+  // XU modifier applies to the leg(s) where the angiogram findings drove the intervention.
+  // Each leg gets its own 75710 with laterality modifier.
+  if(ngLegAngiogramIncluded()){
+    const imgPro = ngBillingMode==='pro';
+    const sides = ngComputeSides();
+    const treatedSides = new Set(sides);
+    if(sides.length === 2){
+      // Bilateral intervention — both legs had diagnostic angiogram that drove treatment
+      codes.push({code: imgPro?'75710-26-RT-XU':'75710-RT-XU', desc:'Angiography, right lower extremity, RS&I — angiogram findings drove right-side intervention (XU = distinct from road-mapping).'+(imgPro?' (pro: -26)':'')});
+      codes.push({code: imgPro?'75710-26-LT-XU':'75710-LT-XU', desc:'Angiography, left lower extremity, RS&I — angiogram findings drove left-side intervention (XU = distinct from road-mapping).'+(imgPro?' (pro: -26)':'')});
+    } else if(sides.length === 1){
+      const treatedSide = sides[0].toUpperCase();
+      const untreatedSide = treatedSide === 'RIGHT' ? 'LEFT' : 'RIGHT';
+      // Intervention side gets XU modifier
+      codes.push({code: imgPro?`75710-26-${treatedSide}-XU`:`75710-${treatedSide}-XU`, desc:`Angiography, ${sides[0]} lower extremity, RS&I — angiogram findings drove the intervention on this side (XU = distinct from road-mapping).`+(imgPro?' (pro: -26)':'')});
+      // If bilateral angiogram was performed (other leg diagnostic only, no intervention), flag it
+      flags.push(`If a diagnostic angiogram of the ${untreatedSide.toLowerCase()} leg was also performed (no intervention on that side), add 75710-${untreatedSide} WITHOUT the XU modifier — plus the appropriate selective catheterization code (36245/36246/36247) depending on how far the catheter was advanced into that leg.`);
+    }
+    flags.push('Leg angiogram XU modifier: confirm prior catheter-based study was unavailable/inadequate, a full diagnostic study was performed, and findings independently characterized anatomy and drove the decision to intervene.');
+  } else if(ngLegAngiogramTier() === 'ask' && ngLegAngiogramAnswer === null){
+    flags.push('⏳ Leg angiogram not yet answered — see "Needs your input" above.');
   }
 
   if([...ngSecondaryAccess].length){
