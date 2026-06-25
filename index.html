@@ -1281,20 +1281,16 @@ function parseFistuloText(text) {
 
 function buildFistuloPending(det) {
   const pending = [];
-  if (det.accessTypeUnknown) {
-    pending.push({id:'f_accessType', text:'AVF or AVG?', options:['AVF (fistula)','AVG (graft)'],
-      resolve:(ans)=>{ det.isAVF=ans.includes('AVF'); det.isAVG=ans.includes('AVG'); det.accessTypeUnknown=false; }});
-  }
-  if (det.sedationMin === 0) {
+  if(det.sedationMin === 0) {
     pending.push({id:'f_sedation', text:'Moderate sedation time (minutes)? Enter 0 if none.', type:'number',
       resolve:(val)=>{ det.sedationMin=parseInt(val)||0; }});
   }
-  if (det.inflowMentioned && !det.inflowFar && !det.inflowNear) {
+  if(det.inflowMentioned && !det.inflowFar && !det.inflowNear) {
     pending.push({id:'f_inflow', text:'Inflow artery: how far from anastomosis?',
-      options:['<3 cm — near, bundled (no extra codes)','≥3 cm — far, separate codes (36215 + 75710)'],
+      options:['<2 cm — near, bundled (no extra codes)','≥2 cm — far, separate codes (36215 + 75710)'],
       resolve:(ans)=>{ det.inflowNear=ans.includes('near'); det.inflowFar=ans.includes('far'); det.inflowMentioned=false; }});
   }
-  if (det.ivus && det.ivusCount === 1) {
+  if(det.ivus && det.ivusCount === 1) {
     pending.push({id:'f_ivusCount', text:'IVUS — how many vessels examined?', type:'number',
       resolve:(val)=>{ det.ivusCount=Math.max(1,parseInt(val)||1); }});
   }
@@ -1303,36 +1299,34 @@ function buildFistuloPending(det) {
 
 function buildFistuloCodes(det, billing) {
   const codes=[], flags=[];
-  if (det.thrombectomy && det.isAVF)
-    flags.push({type:'flag', text:'AVF thrombectomy: open surgical codes (36831–36833) typically apply, not 36904–36906. Confirm with billing.'});
-  if (det.stent && det.angioplasty)
+  if(det.stent && det.angioplasty)
     flags.push({type:'flag', text:'Stent code bundles angioplasty — PTA not billed separately on the same vessel.'});
   let base;
-  if (!det.thrombectomy) {
-    if (det.stent) base={code:'36903',desc:'Fistulogram with stent (includes angioplasty if performed)'};
-    else if (det.angioplasty) base={code:'36902',desc:'Fistulogram with angioplasty'};
+  if(!det.thrombectomy) {
+    if(det.stent) base={code:'36903',desc:'Fistulogram with stent (includes angioplasty if performed)'};
+    else if(det.angioplasty) base={code:'36902',desc:'Fistulogram with angioplasty'};
     else base={code:'36901',desc:'Fistulogram, diagnostic'};
   } else {
-    if (det.stent) base={code:'36906',desc:'Fistulogram + thrombectomy + stent'};
-    else if (det.angioplasty) base={code:'36905',desc:'Fistulogram + thrombectomy + angioplasty'};
+    if(det.stent) base={code:'36906',desc:'Fistulogram + thrombectomy + stent'};
+    else if(det.angioplasty) base={code:'36905',desc:'Fistulogram + thrombectomy + angioplasty'};
     else base={code:'36904',desc:'Fistulogram + thrombectomy, diagnostic'};
   }
   codes.push(base);
-  if (det.ivus) {
+  if(det.ivus) {
     codes.push({code:'37252',desc:'IVUS, initial noncoronary vessel'});
     for(let i=1;i<det.ivusCount;i++) codes.push({code:'+37253',desc:'IVUS, additional vessel'+(billing==='facility'?' ⚠️ APC packaged':'')});
     flags.push({type:'prompt',text:'IVUS: confirm saved permanent image with documented findings.'});
   }
-  if (det.usGuidance)
+  if(det.usGuidance)
     codes.push({code:billing==='pro'?'76937-26':'76937',desc:'US guidance, vascular access'+(billing==='pro'?' (pro: -26)':'')});
-  if (det.inflowFar) {
-    codes.push({code:'36215',desc:'Selective cath, first-order branch (inflow artery, far anastomosis)'});
+  if(det.inflowFar) {
+    codes.push({code:'36215',desc:'Selective cath, first-order branch (inflow artery, ≥2 cm from anastomosis)'});
     codes.push({code:billing==='pro'?'75710-26-XU':'75710-XU',desc:'Extremity arteriogram, inflow artery (true diagnostic)'+(billing==='pro'?' (pro: -26)':'')});
-    flags.push({type:'flag',text:'Inflow ≥3 cm from anastomosis: confirm independent diagnostic documentation standard met.'});
-  } else if (det.inflowNear) {
-    flags.push({type:'flag',text:'Inflow near anastomosis (<3 cm): bundled into fistulogram code — no separate arterial intervention codes.'});
+    flags.push({type:'flag',text:'Inflow ≥2 cm from anastomosis: confirm independent diagnostic documentation standard met.'});
+  } else if(det.inflowNear) {
+    flags.push({type:'flag',text:'Inflow <2 cm from anastomosis: bundled into fistulogram code — no separate arterial codes.'});
   }
-  if (det.sedationMin >= 10) {
+  if(det.sedationMin >= 10) {
     codes.push({code:'99152',desc:`Moderate sedation (${det.sedationMin} min)`});
     const extra=Math.floor((det.sedationMin-15)/8);
     if(extra>0){ if(billing==='facility') codes.push({code:'+99153',desc:`Moderate sedation, additional ×${extra} (facility)`}); else flags.push({type:'facility',text:`99153 ×${extra}: facility-only — excluded from professional list.`}); }
@@ -2452,16 +2446,12 @@ function ngAllClosuresResolved(){
   return femorals.every(k => !!ngClosureByAccess[k]);
 }
 
-// Three-tier rule for whether an aortogram / leg angiogram is included and
-// whether it needs to be asked about:
-//  - 'auto'  — any iliac territory treated, or any brachial access used.
-//              Always included, no question asked.
-//  - 'ask'   — below-iliac treatment only, and either the access is
-//              crossover (treated leg ≠ femoral access leg) or the case is
-//              bilateral. Asked once in "Needs your input"; defaults to
-//              not-included until answered.
-//  - 'none'  — below-iliac treatment only, unilateral, fully ipsilateral
-//              femoral access (no brachial). Never included, never asked.
+// Three-tier rule for whether an aortogram is included:
+//  - 'auto'  — iliac territory treated, brachial access, OR crossover femoral access
+//              (contralateral femoral to intervention leg). All require traversing
+//              the aorta, so 75625 always fires. No question asked.
+//  - 'none'  — below-iliac treatment only, ipsilateral antegrade femoral access.
+//              No aortic imaging needed or billable.
 function ngAortogramTier(){
   const sides = ngComputeSides();
   const treatedTerritories = new Set();
@@ -2469,17 +2459,14 @@ function ngAortogramTier(){
     if(ngHasTreatment(r.treatment)) treatedTerritories.add(NOTEGEN_TERRITORY_BY_KEY[r.key]);
   });
   if(treatedTerritories.has('iliac') || ngHasBrachialAccess()) return 'auto';
-  if(!treatedTerritories.size) return 'none'; // nothing treated yet — nothing to justify
-  if(sides.length === 2) return 'ask';
+  if(!treatedTerritories.size) return 'none';
+  // Crossover = femoral access on opposite leg from intervention — aortogram auto-included
   const femSides = ngFemoralAccessSides();
-  const ipsilateral = femSides.length === 1 && femSides[0] === sides[0];
-  return ipsilateral ? 'none' : 'ask';
+  const ipsilateral = sides.length === 1 && femSides.length === 1 && femSides[0] === sides[0];
+  return ipsilateral ? 'none' : 'auto';
 }
 function ngAortogramIncluded(){
-  const tier = ngAortogramTier();
-  if(tier === 'auto') return true;
-  if(tier === 'ask') return ngAortogramTierAnswer === true;
-  return false;
+  return ngAortogramTier() === 'auto';
 }
 
 // Leg angiogram (75710/75716) tier — separate from aortogram.
@@ -2677,13 +2664,6 @@ function ngRenderPending(){
         <div class="ptext"><b>Diagnostic leg angiogram performed?</b> Did the angiogram findings independently characterize the anatomy and drive the decision to intervene?</div>
         <button data-ng-legangio="yes">Yes — drove intervention</button>
         <button data-ng-legangio="no">No</button>
-      </div>`);
-    }
-    if(ngAortogramTier()==='ask' && ngAortogramTierAnswer===null){
-      items.push(`<div class="pending-item">
-        <div class="ptext"><b>Diagnostic aortogram performed?</b> Below-iliac treatment with crossover or bilateral access doesn't auto-include this — confirm.</div>
-        <button data-ng-aortogram-tier="yes">Yes, performed</button>
-        <button data-ng-aortogram-tier="no">No</button>
       </div>`);
     }
   }
@@ -3262,8 +3242,6 @@ function ngSuggestCodes(){
   if(ngAortogramIncluded()){
     const imgPro = ngBillingMode==='pro';
     codes.push({code: imgPro?'75625-26':'75625', desc:'Aortography, abdominal, by catheter, RS&I — confirm the aortogram independently characterized findings (not just confirmatory imaging) before submitting.'+(imgPro?' (pro: -26)':'')});
-  } else if(tier === 'ask' && ngAortogramTierAnswer===null){
-    flags.push('⏳ Aortogram inclusion not yet answered — see "Needs your input" above.');
   }
 
   // Leg angiogram codes — separate from aortogram.
