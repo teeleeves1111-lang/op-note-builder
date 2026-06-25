@@ -699,19 +699,6 @@ function renderVessels(){
         <label class="inline"><input type="checkbox" data-field="lithotripsy" data-id="${v.id}" ${v.lithotripsy?'checked':''}> Lithotripsy (IVL)</label>
         <label class="inline"><input type="checkbox" data-field="stent" data-id="${v.id}" ${v.stent?'checked':''}> Stent</label>
       </div>
-      <div class="row3 sizefield">
-        <div><label>Balloon/IVL size</label><input type="text" data-field="balloonSize" data-id="${v.id}" value="${v.balloonSize}" placeholder="e.g. 5mm"></div>
-        <div style="opacity:${v.stent?'1':'0.4'}; transition:opacity .15s;"><label>Stent type${v.stent?'':' (n/a — Stent not checked)'}</label>
-          <select data-field="stentType" data-id="${v.id}" ${v.stent?'':'disabled'}>
-            <option value="self-expanding" ${v.stentType==='self-expanding'?'selected':''}>Self-expanding</option>
-            <option value="balloon-expandable" ${v.stentType==='balloon-expandable'?'selected':''}>Balloon-expandable</option>
-            <option value="covered" ${v.stentType==='covered'?'selected':''}>Covered</option>
-          </select>
-        </div>
-        <div style="opacity:${v.stent?'1':'0.4'}; transition:opacity .15s;"><label>Stent size${v.stent?'':' (n/a — Stent not checked)'}</label><input type="text" data-field="stentSize" data-id="${v.id}" value="${v.stentSize}" placeholder="e.g. 6x150mm" ${v.stent?'':'disabled'}></div>
-      </div>
-      ${getSizeChips(v.territory, v.vessel).length ? `<div class="chiprow">${getSizeChips(v.territory, v.vessel).map(sz=>`<span class="chip" data-size-chip="${v.id}" data-size-value="${sz}">${sz}</span>`).join('')}</div>` : ''}      <label>Result</label>
-      <input type="text" data-field="result" data-id="${v.id}" value="${v.result}">
     `;
     wrap.appendChild(block);
   });
@@ -1070,7 +1057,7 @@ function parseFullNote(text){
 // Case-level items that block their code until explicitly resolved when the
 // note doesn't mention them at all (can't tell "wasn't done" from "wasn't
 // said" otherwise). Reset on every fresh Analyze of a new note.
-let caseAnswers = {aortogram: null, sedationAnswered: false, sedationMinutes: 0, usGuidance: null};
+let caseAnswers = {aortogram: null, aortogramDone: null, legAngioDone: null, sedationAnswered: false, sedationMinutes: 0, usGuidance: null};
 
 document.getElementById('analyzeBtn').addEventListener('click', ()=>{
   const text = document.getElementById('noteInput').value.trim();
@@ -1078,7 +1065,7 @@ document.getElementById('analyzeBtn').addEventListener('click', ()=>{
   if(!text){ resultEl.textContent = 'Paste or type a note first.'; return; }
 
   if(currentProc === 'le'){
-    caseAnswers = {aortogram: null, sedationAnswered: false, sedationMinutes: 0, usGuidance: null};
+    caseAnswers = {aortogram: null, aortogramDone: null, legAngioDone: null, sedationAnswered: false, sedationMinutes: 0, usGuidance: null};
     const parsed = parseFullNote(text);
     if(!parsed.length){
       resultEl.textContent = 'No recognizable vessels found — add manually below.';
@@ -1109,7 +1096,7 @@ document.getElementById('newPatientBtn').addEventListener('click', ()=>{
   const noteInputEl = document.getElementById('noteInput');
   noteInputEl.value = '';
   vesselRows = [];
-  caseAnswers = {aortogram: null, sedationAnswered: false, sedationMinutes: 0, usGuidance: null};
+  caseAnswers = {aortogram: null, aortogramDone: null, legAngioDone: null, sedationAnswered: false, sedationMinutes: 0, usGuidance: null};
   document.getElementById('parseResult').textContent = '';
   document.getElementById('codeOut').innerHTML = '';
   document.getElementById('flagOut').innerHTML = '';
@@ -1818,18 +1805,22 @@ function suggestCodes(){
   // ---- Diagnostic aortogram / extremity angiogram: auto-detect, else require an explicit answer ----
   const {aortogramMentioned, bilateralLeg, unilateralLeg, anyAutoDetected} = detectAortogramSignals(noteText);
 
-  let resolvedAorto = null; // {aortogram, bilateral, bilateralXU, unilateral, unilateralPlusContralateral} once known
+  let resolvedAorto = null;
   if(anyAutoDetected){
     resolvedAorto = {aortogram: aortogramMentioned, bilateral: bilateralLeg, bilateralXU: false, unilateral: unilateralLeg, unilateralPlusContralateral: false};
-  } else if(caseAnswers.aortogram !== null){
-    const ans = caseAnswers.aortogram;
-    resolvedAorto = {
-      aortogram: ans==='aortogram' || ans==='both',
-      bilateral: ans==='bilateral',
-      bilateralXU: ans==='bilateral',
-      unilateral: ans==='unilateral' || ans==='both',
-      unilateralPlusContralateral: ans==='unilateral-plus-contralateral-dx'
-    };
+  } else {
+    // Build from the two independent answers
+    const aortoDone = caseAnswers.aortogramDone === true;
+    const legAns = caseAnswers.legAngioDone;
+    if(caseAnswers.aortogramDone !== null || legAns !== null){
+      resolvedAorto = {
+        aortogram: aortoDone,
+        bilateral: legAns === 'bilateral',
+        bilateralXU: legAns === 'bilateral',
+        unilateral: legAns === 'unilateral',
+        unilateralPlusContralateral: legAns === 'unilateral-plus-contralateral-dx'
+      };
+    }
   }
 
   if(resolvedAorto){
@@ -1892,16 +1883,23 @@ function renderPending(){
   const noteText = (document.getElementById('noteInput').value || '');
   const noteLow = noteText.toLowerCase();
   const {aortogramMentioned, bilateralLeg, unilateralLeg} = detectAortogramSignals(noteText);
-  if(!aortogramMentioned && !bilateralLeg && !unilateralLeg && caseAnswers.aortogram===null){
+  if(!aortogramMentioned && caseAnswers.aortogramDone===null){
     items.push(`
       <div class="pending-item">
-        <div class="ptext"><b>Aortogram / leg angiogram performed?</b> If a true diagnostic study was performed (prior unavailable, findings drove the decision to intervene), select what was done.</div>
-        <button data-confirm-case="aortogram" data-value="none">None</button>
-        <button data-confirm-case="aortogram" data-value="aortogram">Aortogram only</button>
-        <button data-confirm-case="aortogram" data-value="unilateral">Leg angio (unilateral, drove intervention)</button>
-        <button data-confirm-case="aortogram" data-value="bilateral">Leg angio (bilateral, drove intervention)</button>
-        <button data-confirm-case="aortogram" data-value="both">Aortogram + leg angio</button>
-        <button data-confirm-case="aortogram" data-value="unilateral-plus-contralateral-dx">Leg angio on intervention side (XU) + contralateral diagnostic only</button>
+        <div class="ptext"><b>Aortogram performed?</b> (75625 — only if prior study unavailable and findings characterized pathology)</div>
+        <button data-confirm-case="aortogramDone" data-value="yes">Yes</button>
+        <button data-confirm-case="aortogramDone" data-value="no">No</button>
+      </div>
+    `);
+  }
+  if(!bilateralLeg && !unilateralLeg && caseAnswers.legAngioDone===null){
+    items.push(`
+      <div class="pending-item">
+        <div class="ptext"><b>Leg angiogram performed?</b> (75710-XU — only if prior study unavailable and findings drove the decision to intervene)</div>
+        <button data-confirm-case="legAngioDone" data-value="none">None</button>
+        <button data-confirm-case="legAngioDone" data-value="unilateral">Yes — unilateral (intervention side only)</button>
+        <button data-confirm-case="legAngioDone" data-value="bilateral">Yes — bilateral (both sides drove intervention)</button>
+        <button data-confirm-case="legAngioDone" data-value="unilateral-plus-contralateral-dx">Yes — intervention side (XU) + contralateral diagnostic only</button>
       </div>
     `);
   }
@@ -1930,7 +1928,6 @@ function renderPending(){
         <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
           <span style="font-size:11.5px;">or minutes directly</span>
           <input type="number" id="sedMinInput" min="0" placeholder="minutes">
-          <button id="confirmSedMinBtn" type="button">Confirm minutes</button>
           <button data-confirm-case="sedation-none" data-value="none">No sedation</button>
         </div>
       </div>
@@ -1958,12 +1955,26 @@ function renderPending(){
         caseAnswers.sedationMinutes = 0;
       } else if(b.dataset.confirmCase === 'usGuidance'){
         caseAnswers.usGuidance = (b.dataset.value === 'yes');
+      } else if(b.dataset.confirmCase === 'aortogramDone'){
+        caseAnswers.aortogramDone = (b.dataset.value === 'yes');
+      } else if(b.dataset.confirmCase === 'legAngioDone'){
+        caseAnswers.legAngioDone = b.dataset.value; // 'none','unilateral','bilateral','unilateral-plus-contralateral-dx'
       } else {
         caseAnswers.aortogram = b.dataset.value;
       }
       renderAll();
     });
   });
+  // Sedation minutes auto-commit on Enter or blur
+  const sedMinInput = document.getElementById('sedMinInput');
+  if(sedMinInput){
+    function commitSed(){
+      const val = parseInt(sedMinInput.value, 10);
+      if(!isNaN(val) && val>=0){ caseAnswers.sedationAnswered=true; caseAnswers.sedationMinutes=val; renderAll(); }
+    }
+    sedMinInput.addEventListener('keydown', e=>{ if(e.key==='Enter') commitSed(); });
+    sedMinInput.addEventListener('blur', commitSed);
+  }
   const sedBtn = document.getElementById('confirmSedMinBtn');
   if(sedBtn){
     sedBtn.addEventListener('click', ()=>{
