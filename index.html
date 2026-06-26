@@ -256,10 +256,6 @@
         <div class="proc-chip" data-proc="venous">Venous</div>
         <div class="proc-chip" data-proc="renal">Renal / Visceral</div>
       </div>
-      <div class="billing-toggle">
-        <button id="billingPro" class="active" type="button">Pro</button>
-        <button id="billingFac" type="button">Facility</button>
-      </div>
     </div>
 
     <!-- Input card -->
@@ -299,7 +295,7 @@
 
     <!-- Suggested codes -->
     <div class="card">
-      <h2>Suggested CPT codes <span class="badge" id="billingBadge">PRO</span></h2>
+      <h2 style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">Suggested CPT codes <div class="billing-toggle" style="margin-left:4px;"><button id="billingPro" class="active" type="button">Pro</button><button id="billingFac" type="button">Facility</button></div></h2>
       <div class="code-list" id="codeOut"></div>
       <div id="flagOut" style="margin-top:8px;display:flex;flex-direction:column;gap:5px;"></div>
       <div class="toolbar">
@@ -389,13 +385,7 @@
     </div>
 
     <div class="card">
-      <h2>Suggested CPT codes <span class="badge" id="ngBillingBadge">PRO</span></h2>
-      <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
-        <div class="billing-toggle">
-          <button id="ngBillingPro" class="active" type="button">Pro</button>
-          <button id="ngBillingFac" type="button">Facility</button>
-        </div>
-      </div>
+      <h2 style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">Suggested CPT codes <div class="billing-toggle" style="margin-left:4px;"><button id="ngBillingPro" class="active" type="button">Pro</button><button id="ngBillingFac" type="button">Facility</button></div></h2>
       <div class="code-list" id="ngCodeOut"></div>
       <div id="ngFlagOut" style="margin-top:8px;display:flex;flex-direction:column;gap:5px;"></div>
       <div class="toolbar">
@@ -435,8 +425,8 @@ function setBillingMode(mode) {
   const facBtn = document.getElementById('billingFac');
   if(proBtn){ proBtn.classList.toggle('active', mode==='pro'); }
   if(facBtn){ facBtn.classList.toggle('active', mode==='facility'); }
-  const badge = document.getElementById('billingBadge');
-  if(badge) badge.textContent = mode==='pro' ? 'PRO' : 'FACILITY';
+  // billingBadge removed — toggle buttons themselves show the active state
+  renderAll(); // re-render codes with updated billing mode
 }
 document.getElementById('billingPro')?.addEventListener('click', ()=>setBillingMode('pro'));
 document.getElementById('billingFac')?.addEventListener('click', ()=>setBillingMode('facility'));
@@ -447,8 +437,7 @@ function setNgBillingMode(mode) {
   ngBillingMode = mode;
   document.getElementById('ngBillingPro')?.classList.toggle('active', mode==='pro');
   document.getElementById('ngBillingFac')?.classList.toggle('active', mode==='facility');
-  const badge = document.getElementById('ngBillingBadge');
-  if(badge) badge.textContent = mode==='pro' ? 'PRO' : 'FACILITY';
+  // ngBillingBadge removed — toggle buttons show active state
   renderAll(); // re-render codes with new billing mode
 }
 document.getElementById('ngBillingPro')?.addEventListener('click', ()=>setNgBillingMode('pro'));
@@ -662,7 +651,7 @@ function renderVessels(){
         <span class="vtitle">Vessel ${idx+1}</span>
         <button class="danger small" data-remove="${v.id}">Remove</button>
       </div>
-      <div class="row3">
+      <div class="row3" style="grid-template-columns:1fr 1fr;">
         <div>
           <label>Territory</label>
           <select data-field="territory" data-id="${v.id}">
@@ -671,17 +660,7 @@ function renderVessels(){
         </div>
         <div>
           <label>Vessel</label>
-          <select data-field="vessel" data-id="${v.id}">
-            ${TERRITORY_VESSELS[v.territory].map(name=>`<option value="${name}" ${v.vessel===name?'selected':''}>${name}</option>`).join('')}
-          </select>
-        </div>
-        <div>
-          <label>Lesion${v.lesionConfirmed ? '' : ' <span style="color:var(--pending-ink); font-weight:700;">— confirm</span>'}</label>
-          <select data-field="lesion" data-id="${v.id}" style="${v.lesionConfirmed ? '' : 'border-color:var(--pending); background:var(--pending-soft);'}">
-            ${!v.lesionConfirmed ? `<option value="" selected disabled hidden>— select stenosis or occlusion —</option>` : ''}
-            <option value="straightforward" ${v.lesionConfirmed && v.lesion==='straightforward'?'selected':''}>Stenosis (straightforward)</option>
-            <option value="complex" ${v.lesionConfirmed && v.lesion==='complex'?'selected':''}>Occlusion / CTO (complex)</option>
-          </select>
+          <div style="font-size:13px; color:var(--ink); padding:6px 2px; line-height:1.3;">${v.vessel}</div>
         </div>
       </div>
       ${idx>0 ? `<label class="inline" style="text-transform:none; font-weight:500; color:var(--ink); display:flex; align-items:center; gap:6px; margin-top:8px;">
@@ -750,7 +729,7 @@ const VESSEL_MAP = [
   [/\bcommon iliac\b/, 'iliac', 'Common iliac'],
   [/\bexternal iliac\b/, 'iliac', 'External iliac'],
   [/\binternal iliac\b/, 'iliac', 'Internal iliac'],
-  [/tibioperoneal trunk|\btp trunk\b/, 'tibioperoneal', TIBIOPERONEAL_TRUNK_SENTINEL],
+  [/tibioperoneal trunk|\btp trunk\b|\btpt\b/, 'tibioperoneal', TIBIOPERONEAL_TRUNK_SENTINEL],
   [/\banterior tibial\b/, 'tibioperoneal', 'Anterior tibial'],
   [/\bposterior tibial\b/, 'tibioperoneal', 'Posterior tibial'],
   [/\bperoneal\b/, 'tibioperoneal', 'Peroneal'],
@@ -819,6 +798,23 @@ function resolveTibioperonealTrunkVessel(fullText, absoluteIndex){
 // the FULL text — the nearest real vessel mention is often in an adjacent
 // clause, not the same one (e.g. "...for the peroneal artery and the
 // tibioperoneal trunk stenoses" splits into two clauses on "and").
+// Clause-leading abbreviation map for Tab 1 shorthand input — same set as
+// NOTEGEN_ABBREV_LEADING_MAP in Tab 4, but mapped to Tab 1's territory/vessel
+// schema. Only consulted as a fallback when findVesselMatchesIn() finds nothing.
+const TAB1_ABBREV_VESSEL_MAP = [
+  [/^tpt\b/i, 'tibioperoneal', 'Tibioperoneal trunk (TPT — confirm PT vs peroneal)'],
+  [/^cia\b/i, 'iliac', 'Common iliac'],
+  [/^eia\b/i, 'iliac', 'External iliac'],
+  [/^iia\b/i, 'iliac', 'Internal iliac'],
+  [/^cfa\b/i, 'femoropopliteal', 'Common femoral/profunda femoris'],
+  [/^sfa\b/i, 'femoropopliteal', 'SFA/popliteal'],
+  [/^pop(lit)?\b/i, 'femoropopliteal', 'SFA/popliteal'],
+  [/^at\b/i, 'tibioperoneal', 'Anterior tibial'],
+  [/^pt\b/i, 'tibioperoneal', 'Posterior tibial'],
+  [/^pero?\b/i, 'tibioperoneal', 'Peroneal'],
+  [/^dp\b/i, 'inframalleolar', 'Dorsalis pedis'],
+];
+
 function segmentByVessel(text){
   const rawPieces = text.split(/[,.;]\s+|\s+and\s+/i);
   let cursor = 0;
@@ -838,6 +834,16 @@ function segmentByVessel(text){
 
   clauses.forEach(piece=>{
     let matches = findVesselMatchesIn(piece.text);
+    // Short abbreviations (pt, pop, at, per, dp) are clause-leading shorthand
+    // that can't safely be matched anywhere in text (risk of false positives
+    // on common English words). Fall back to the same leading-abbreviation
+    // check Tab 4 uses when the full-text map found nothing.
+    if(!matches.length){
+      const stripped = piece.text.trim().toLowerCase().replace(/^(left|right|lt|rt)\b\s*/, '');
+      for(const [re, terr, name] of TAB1_ABBREV_VESSEL_MAP){
+        if(re.test(stripped)){ matches = [{index:0, territory:terr, vessel:name}]; break; }
+      }
+    }
     if(matches.length){
       matches = matches.map(m=>{
         if(m.vessel === TIBIOPERONEAL_TRUNK_SENTINEL){
@@ -912,7 +918,7 @@ function analyzeSegmentText(t){
   // generate a phantom code for a device that was never actually deployed
   // today.
   const preExistingStentRef = /\bselect(?:ed|ing)?\s+the\s+(?:left\s+|right\s+)?[\w-]+\s+stent\b|\b\d+\s+stents?\s+in\s+place\b|\bknown\s+(?:to\s+have\s+)?(?:a\s+|an\s+)?stent\b|\bpreviously\s+placed\s+stent\b|\bexisting\s+stent\b/i;
-  if(/\bstents?\b|stenting/.test(low) && !preExistingStentRef.test(low)) out.stent=true;
+  if(/\bstents?\b|stenting|\bscaffold\b/.test(low) && !preExistingStentRef.test(low)) out.stent=true;
   if(/atherectomy|laser|orbital|rotational|directional/.test(low)) out.atherectomy=true;
   if(/lithotripsy|shockwave|\bivl\b/.test(low)) out.lithotripsy=true;
   if(/drug.coated|\bdcb\b/.test(low)) out.dcb=true;
@@ -928,6 +934,10 @@ function analyzeSegmentText(t){
   if(/angioplasty|\bplasty\b|\bpta\b|balloon/.test(low) && !out.dcb && !out.stent && !out.atherectomy) out.angioplasty=true;
   if(/covered stent/.test(low)) out.stentType='covered';
   else if(/balloon.expandable/.test(low)) out.stentType='balloon-expandable';
+  // BTK context (any mention of "BTK" alongside a stent/scaffold) implies
+  // balloon-expandable — all commercially available BTK drug-eluting
+  // stents and bioresorbable scaffolds (Esprit, etc.) are BE by design.
+  if(out.stent && /\bbtk\b/.test(low) && out.stentType==='self-expanding') out.stentType='balloon-expandable';
 
   // Known stent brands override the generic guess — and mentioning one
   // means a stent was placed even if the word "stent" itself got dropped
@@ -1131,7 +1141,72 @@ async function runNormalize(inputId, diffId, resultCardId, statusId, btnId){
 
 // ---------- OTHER PROC PARSERS (Fistulogram / Venous / Renal) ----------
 
+
+// Shared sedation pending UI — same time-calculator used by all tabs.
+function buildSedationPendingHTML(idPrefix) {
+  return `<div class="pending-item" style="flex-direction:column; align-items:stretch;">
+    <div class="ptext"><b>Sedation given?</b></div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:4px;">
+      <span style="font-size:11.5px;">Start</span><input type="time" id="${idPrefix}SedStart">
+      <span style="font-size:11.5px;">End</span><input type="time" id="${idPrefix}SedEnd">
+      <button type="button" id="${idPrefix}SedTimesBtn">Calculate &amp; confirm</button>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+      <span style="font-size:11.5px;">or minutes directly</span>
+      <input type="number" id="${idPrefix}SedMin" min="0" placeholder="minutes" style="width:90px;">
+      <button type="button" onclick="${idPrefix==='otherSed'?'onOtherSedNone':idPrefix==='ngSed'?'onNgSedNone':'onLeSedNone'}()">No sedation</button>
+    </div>
+  </div>`;
+}
+function attachSedationHandlers(idPrefix, onMinutes, onNone) {
+  const timesBtn = document.getElementById(idPrefix + 'SedTimesBtn');
+  if(timesBtn){
+    timesBtn.addEventListener('click', ()=>{
+      const startVal = document.getElementById(idPrefix + 'SedStart').value;
+      const endVal   = document.getElementById(idPrefix + 'SedEnd').value;
+      if(!startVal || !endVal) return;
+      const [sh, sm] = startVal.split(':').map(Number);
+      const [eh, em] = endVal.split(':').map(Number);
+      let diff = (eh*60+em) - (sh*60+sm);
+      if(diff < 0) diff += 24*60;
+      if(diff <= 0 || diff > 600) return;
+      onMinutes(diff);
+    });
+  }
+  const minInput = document.getElementById(idPrefix + 'SedMin');
+  if(minInput){
+    function commitMin(){
+      const raw = minInput.value.trim();
+      if(raw === '') return; // empty field — don't commit on blur/Enter
+      const val = parseInt(raw, 10);
+      if(!isNaN(val) && val >= 0) onMinutes(val);
+    }
+    minInput.addEventListener('keydown', e=>{ if(e.key==='Enter') commitMin(); });
+    // No blur handler — blur fires before button clicks on mobile (iOS),
+    // causing the card to re-render and swallow the "No sedation" click.
+  }
+  // No sedation button handled via inline onclick (onOtherSedNone/onNgSedNone/onLeSedNone) — no addEventListener needed
+}
+
 // ---- Shared render for non-LE code output ----
+
+// Global No-Sedation handlers — called via inline onclick, survive DOM re-renders
+function onOtherSedNone(){
+  // Find the pending item and resolve it
+  const sedDiv = document.querySelector('[data-sed-pending]');
+  if(!sedDiv) return;
+  const proc = typeof currentProc !== 'undefined' ? currentProc : null;
+  if(otherProcPending){
+    const sedPendItem = otherProcPending.find(p=>p.id===sedDiv.dataset.sedPending);
+    if(sedPendItem){ sedPendItem.resolve('0'); finalizePendingAndRender(proc); }
+  }
+}
+function onNgSedNone(){
+  ngSedationAnswered = true; ngSedationMinutes = 0; ngRenderAll();
+}
+function onLeSedNone(){
+  caseAnswers.sedationAnswered = true; caseAnswers.sedationMinutes = 0; renderAll();
+}
 function renderOtherCodes(codes, flags) {
   const codeEl = document.getElementById('codeOut');
   const flagEl = document.getElementById('flagOut');
@@ -1166,12 +1241,18 @@ function renderOtherPending(pending, det, proc) {
     const div = document.createElement('div');
     div.className = 'pending-item';
     if (p.type === 'number') {
-      div.innerHTML = `<span class="ptext">${p.text}</span><input type="number" min="0" max="300" value="0" id="pend_${p.id}" style="width:80px;"> <button type="button" id="pendBtn_${p.id}">Confirm</button>`;
-      div.querySelector(`#pendBtn_${p.id}`).addEventListener('click', ()=>{
-        const val = document.getElementById(`pend_${p.id}`).value;
-        p.resolve(val);
-        finalizePendingAndRender(proc);
-      });
+      const isSedation = /sed/i.test(p.id);
+      if(isSedation){
+        div.innerHTML = buildSedationPendingHTML('otherSed');
+        div.dataset.sedPending = p.id;
+      } else {
+        div.innerHTML = `<span class="ptext">${p.text}</span><input type="number" min="0" max="300" value="0" id="pend_${p.id}" style="width:80px;"> <button type="button" id="pendBtn_${p.id}">Confirm</button>`;
+        div.querySelector(`#pendBtn_${p.id}`).addEventListener('click', ()=>{
+          const val = document.getElementById(`pend_${p.id}`).value;
+          p.resolve(val);
+          finalizePendingAndRender(proc);
+        });
+      }
     } else {
       const opts = p.options.map(o=>`<button type="button" data-answer="${o}">${o}</button>`).join('');
       div.innerHTML = `<span class="ptext">${p.text}</span>${opts}`;
@@ -1184,6 +1265,18 @@ function renderOtherPending(pending, det, proc) {
     }
     list.appendChild(div);
   });
+  // Attach sedation time-calculator handlers after all items are in the DOM
+  const sedDiv = list.querySelector('[data-sed-pending]');
+  if(sedDiv){
+    const sedPendId = sedDiv.dataset.sedPending;
+    const sedPendItem = pending.find(p=>p.id===sedPendId);
+    if(sedPendItem){
+      attachSedationHandlers('otherSed',
+        (mins)=>{ sedPendItem.resolve(String(mins)); finalizePendingAndRender(proc); },
+        ()=>{ sedPendItem.resolve('0'); finalizePendingAndRender(proc); }
+      );
+    }
+  }
 }
 
 function finalizePendingAndRender(proc) {
@@ -1331,17 +1424,21 @@ function parseVenousText(text) {
   det.ivcRetrieve = /(?:ivc filter|filter) (?:was )?(?:retriev|remov)|filter retrieval/.test(low);
   det.ivus = /\bivus\b|intravascular ultrasound/.test(low);
   det.ivusCount = 1;
-  if(det.ivus){const m=low.match(/(\d)\s*vessel[^.]*?ivus|ivus[^.]*?(\d)\s*vessel/);if(m)det.ivusCount=parseInt(m[1]||m[2]);}
-  det.bilateralKw = /\bbilateral\b/.test(low);
+  if(det.ivus){const m=low.match(/(\d)\s*vessel[^.]*?ivus|ivus[^.]*?(\d)\s*vessel/);if(m)det.ivusCount=parseInt(m[1]||m[2]);else if(det.bilateral)det.ivusCount=2;}
+  det.bilateralKw = /\bbilat(?:eral)?\b|\bbil\b/.test(low);
   det.leftSide = /\bleft\b/.test(low);
   det.rightSide = /\bright\b/.test(low);
   det.bilateral = det.bilateralKw||(det.leftSide&&det.rightSide);
   det.lateralityUnknown = !det.bilateral&&!det.leftSide&&!det.rightSide&&(det.stent||det.venoplasty);
   det.venogram = /venogram|venography|venacavogram|cavogram/.test(low);
   det.trueDiagnostic = /no prior|prior study unavailable|prior study inadequate|independent diagnostic|true diagnostic/.test(low);
+  // If venogram is mentioned alongside an intervention, treat it as a true diagnostic
+  // study by default (clinical norm); flag for confirmation.
+  if(det.venogram && !det.trueDiagnostic) det.trueDiagnostic = true;
   if(/vena cava|venacava|caval|venacavogram|cavogram/.test(low)) det.venogramType='vena_cava';
   else if(/bilateral.*extrem|extrem.*bilateral/.test(low)) det.venogramType='extremity_bilateral';
   else if(/renal vein/.test(low)) det.venogramType='renal';
+  else if(det.bilateral) det.venogramType='extremity_bilateral';
   else det.venogramType='extremity_unilateral';
   det.sedationMin=0;
   const sm=low.match(/(\d+)\s*min(?:utes?)?\s*(?:of\s*)?(?:moderate\s*)?sedation|sedation[^.]*?(\d+)\s*min/);
@@ -1354,9 +1451,8 @@ function buildVenousPending(det) {
   if(det.lateralityUnknown)
     pending.push({id:'v_lat',text:'Laterality — left, right, or bilateral?',options:['Left','Right','Bilateral'],
       resolve:(ans)=>{det.leftSide=true;det.rightSide=ans==='Bilateral';det.bilateral=ans==='Bilateral';det.lateralityUnknown=false;}});
-  if(det.venogram && !det.trueDiagnostic)
-    pending.push({id:'v_diag',text:'Was this a true independent diagnostic study (prior study unavailable/inadequate)?',options:['Yes — bill with XU modifier','No — bundled into intervention'],
-      resolve:(ans)=>{det.trueDiagnostic=ans.startsWith('Yes');}});
+  // trueDiagnostic auto-set when venogram present — no pending question needed;
+  // a flag in the code output prompts the user to confirm XU modifier.
   if(det.sedationMin===0&&(det.stent||det.venoplasty||det.ivcInsert))
     pending.push({id:'v_sed',text:'Moderate sedation time (minutes)? Enter 0 if none.',type:'number',resolve:(val)=>{det.sedationMin=parseInt(val)||0;}});
   return pending;
@@ -1366,12 +1462,28 @@ function buildVenousCodes(det, billing) {
   const codes=[],flags=[];
   const pro=billing==='pro';
   if(det.stent){
-    if(det.bilateral){codes.push({code:'37238',desc:'Venous stent, initial vein (iliac)'});codes.push({code:'+37239',desc:'Venous stent, additional vein (contralateral)'+(pro?'':' ⚠️ APC packaged')});flags.push({type:'flag',text:'Bilateral venous stenting: 37238 + 37239. Never modifier -50.'});}
-    else{const side=det.leftSide?'left':det.rightSide?'right':'';codes.push({code:'37238',desc:`Venous stent${side?', '+side+' iliac':''}`});}
+    if(det.bilateral){
+      codes.push({code:'37238',desc:'Venous stent, initial vein (iliac)'});
+      codes.push({code:'+37239',desc:'Venous stent, additional vein (contralateral)'+(pro?'':' ⚠️ APC packaged')});
+      codes.push({code:'36010',desc:'Catheter placement, IVC — access site 1 (catheter advanced to IVC for stenting/venogram)'});
+      codes.push({code:'36010-59',desc:'Catheter placement, IVC — access site 2 (bilateral access; -59/-XS distinguishes separate puncture)'});
+      flags.push({type:'flag',text:'Bilateral venous stenting: 37238 + 37239. Never modifier -50. Two 36010 codes for bilateral IVC catheterization (one per access site).'});
+    } else {
+      const side=det.leftSide?'left':det.rightSide?'right':'';
+      codes.push({code:'37238',desc:`Venous stent${side?', '+side+' iliac':''}`});
+      codes.push({code:'36010',desc:'Catheter placement, IVC (catheter advanced to IVC for stenting/venogram)'});
+    }
     flags.push({type:'prompt',text:'Stent device C-code required on facility claim (e.g. C1874). Missing → claim rejection.'});
   } else if(det.venoplasty){
-    if(det.bilateral){codes.push({code:'37248',desc:'Venoplasty, initial vein'});codes.push({code:'+37249',desc:'Venoplasty, additional vein'+(pro?'':' ⚠️ APC packaged')});}
-    else codes.push({code:'37248',desc:'Venoplasty, initial vein'});
+    if(det.bilateral){
+      codes.push({code:'37248',desc:'Venoplasty, initial vein'});
+      codes.push({code:'+37249',desc:'Venoplasty, additional vein'+(pro?'':' ⚠️ APC packaged')});
+      codes.push({code:'36010',desc:'Catheter placement, IVC — access site 1'});
+      codes.push({code:'36010-59',desc:'Catheter placement, IVC — access site 2 (bilateral)'});
+    } else {
+      codes.push({code:'37248',desc:'Venoplasty, initial vein'});
+      codes.push({code:'36010',desc:'Catheter placement, IVC'});
+    }
   } else if(det.ivcInsert){
     codes.push({code:'37191',desc:'IVC filter insertion'});flags.push({type:'prompt',text:'Device C-code required on facility claim for IVC filter.'});
   } else if(det.ivcRetrieve) codes.push({code:'37193',desc:'IVC filter retrieval'});
@@ -1384,6 +1496,7 @@ function buildVenousCodes(det, billing) {
     const mod=pro?'-26-XU':'-XU';
     const cm={vena_cava:`75825${mod}`,extremity_bilateral:`75822${mod}`,renal:`75833${mod}`,extremity_unilateral:`75820${mod}`};
     codes.push({code:cm[det.venogramType],desc:'Diagnostic venogram'+(pro?' (pro: -26)':'')});
+    flags.push({type:'flag',text:'Venogram billed with XU modifier — confirm prior study was unavailable/inadequate and findings independently characterized pathology and drove the decision to intervene.'});
     flags.push({type:'flag',text:'Venogram XU modifier: confirm prior study unavailable/inadequate; findings independently characterized pathology.'});
   } else if(det.venogram&&!det.trueDiagnostic) {
     flags.push({type:'flag',text:'Venogram detected — bundled into intervention. Add XU documentation if true independent diagnostic standard was met.'});
@@ -1398,105 +1511,202 @@ function buildVenousCodes(det, billing) {
 
 // ---- RENAL / VISCERAL PARSER ----
 function parseRenalText(text) {
-  const low=text.toLowerCase();
-  const det={};
-  det.renal=/renal artery|renal stenosis|renal stent|renovascular/.test(low);
-  det.sma=/\bsma\b|superior mesenteric/.test(low);
-  det.celiac=/\bceliac\b/.test(low);
-  det.ima=/\bima\b|inferior mesenteric/.test(low);
-  det.stent=/\bstent/.test(low)&&!/prior stent|stent in place/.test(low);
-  det.pta=/angioplasty|\bpta\b|balloon/.test(low)&&!det.stent;
-  det.bilateralKw=/\bbilateral\b/.test(low);
-  det.leftSide=/\bleft\b/.test(low);
-  det.rightSide=/\bright\b/.test(low);
-  det.bilateral=det.renal&&(det.bilateralKw||(det.leftSide&&det.rightSide));
-  det.sideUnknown=det.renal&&!det.bilateral&&!det.leftSide&&!det.rightSide;
-  det.ivus=/\bivus\b|intravascular ultrasound/.test(low);
-  det.diagnosticAngio=/diagnostic arteriogram|diagnostic angiogram|no prior|prior study/.test(low);
-  det.trueDiagnostic=/no prior|prior unavailable|prior inadequate|independent diagnostic/.test(low);
-  det.sedationMin=0;
-  const sm=low.match(/(\d+)\s*min(?:utes?)?\s*(?:of\s*)?(?:moderate\s*)?sedation|sedation[^.]*?(\d+)\s*min/);
-  if(sm) det.sedationMin=parseInt(sm[1]||sm[2]);
+  const low = text.toLowerCase();
+  const det = {};
+
+  // Top-level vessel presence
+  det.renal   = /renal/.test(low);
+  det.sma     = /\bsma\b|superior mesenteric/.test(low);
+  det.celiac  = /\bceliac\b/.test(low);
+  det.ima     = /\bima\b|inferior mesenteric/.test(low);
+  det.bilateralKw = /\bbilateral\b/.test(low);
+  det.leftSide    = /\bleft\b/.test(low);
+  det.rightSide   = /\bright\b/.test(low);
+  det.ivus    = /\bivus\b|intravascular ultrasound/.test(low);
+  // trueDiagnostic set by text keywords; also settable via pending answer
+  det.trueDiagnostic = /no prior|prior unavailable|prior inadequate|independent diagnostic/.test(low);
+  det.sedationMin = 0;
+  const sm = low.match(/(\d+)\s*min(?:utes?)?\s*(?:of\s*)?(?:moderate\s*)?sedation|sedation[^.]*?(\d+)\s*min/);
+  if(sm) det.sedationMin = parseInt(sm[1]||sm[2]);
+
+  // Per-clause modality tracking
+  det.leftStent=false;  det.rightStent=false;
+  det.leftPta=false;    det.rightPta=false;
+  det.leftAngio=false;  det.rightAngio=false;
+  det.celiacStent=false; det.celiacPta=false;
+  det.smaStent=false;    det.smaPta=false;
+  det.imaStent=false;    det.imaPta=false;
+
+  text.split(/[,;]+/).forEach(cl=>{
+    const c = cl.toLowerCase().trim();
+    if(!/renal|sma|celiac|ima/.test(c)) return;
+    const isL = /\bleft\b/.test(c), isR = /\bright\b/.test(c), isB = /\bbilateral\b/.test(c);
+    const hasS = /\bstent/.test(c) && !/prior stent|stent in place/.test(c);
+    const hasP = /angioplasty|\bpta\b|balloon|plasty/.test(c);
+    // Only flag as diagnostic-angio when the word "angio" explicitly appears
+    const hasA = /\bangio\b/.test(c) && !hasS && !hasP;
+    const isRenal = /\brenal\b/.test(c);
+    const isCeliac= /\bceliac\b/.test(c);
+    const isSma   = /\bsma\b|superior mesenteric/.test(c);
+    const isIma   = /\bima\b|inferior mesenteric/.test(c);
+    if(isRenal){
+      if(hasS){ if(isL||isB) det.leftStent=true;  if(isR||isB) det.rightStent=true; }
+      if(hasP){ if(isL||isB) det.leftPta=true;    if(isR||isB) det.rightPta=true;   }
+      if(hasA){ if(isL||isB) det.leftAngio=true;  if(isR||isB) det.rightAngio=true; }
+    }
+    if(isCeliac){ if(hasS) det.celiacStent=true; if(hasP) det.celiacPta=true; }
+    if(isSma)   { if(hasS) det.smaStent=true;    if(hasP) det.smaPta=true;    }
+    if(isIma)   { if(hasS) det.imaStent=true;    if(hasP) det.imaPta=true;    }
+  });
+
+  det.bilateralStent = det.leftStent && det.rightStent;
+  det.bilateralPta   = det.leftPta   && det.rightPta;
+  det.stent = det.leftStent||det.rightStent||det.celiacStent||det.smaStent||det.imaStent
+    || (/\bstent/.test(low)&&!/prior stent|stent in place/.test(low)&&!det.leftSide&&!det.rightSide&&!det.celiac&&!det.sma&&!det.ima);
+  det.pta = (det.leftPta||det.rightPta||det.celiacPta||det.smaPta||det.imaPta
+    || (/angioplasty|\bpta\b|balloon|plasty/.test(low)&&!det.leftSide&&!det.rightSide&&!det.bilateralKw)) && !det.stent;
+  det.bilateral = det.renal&&(det.bilateralKw||det.bilateralStent||det.bilateralPta);
+  det.sideUnknown = det.renal&&!det.bilateral&&!det.leftSide&&!det.rightSide&&!det.bilateralKw;
+  // diagnosticAngio: explicit angio keyword in any renal/visceral clause, or text-level keywords
+  det.diagnosticAngio = det.leftAngio||det.rightAngio
+    || /diagnostic arteriogram|diagnostic angiogram|no prior|prior study/.test(low);
   return det;
 }
 
 function buildRenalPending(det) {
-  const pending=[];
-  if(det.renal&&det.sideUnknown)
-    pending.push({id:'r_side',text:'Renal artery — left, right, or bilateral?',options:['Left','Right','Bilateral'],
-      resolve:(ans)=>{det.leftSide=true;det.rightSide=ans==='Bilateral';det.bilateral=ans==='Bilateral';det.sideUnknown=false;}});
-  if(det.diagnosticAngio&&!det.trueDiagnostic)
-    pending.push({id:'r_diag',text:'Was this a true independent diagnostic arteriogram (prior study unavailable/inadequate)?',options:['Yes — bill with XU modifier','No — bundled'],
-      resolve:(ans)=>{det.trueDiagnostic=ans.startsWith('Yes');det.diagnosticAngio=true;}});
-  // If diagnostic angiogram only (no intervention), ask about catheter selectivity for 36251/36253
-  if(det.diagnosticAngio && !det.stent && !det.pta && det.cathSelectivity===undefined)
-    pending.push({id:'r_cath',text:'Diagnostic renal angiogram only (no intervention) — how far was the catheter advanced?',
+  const pending = [];
+  if(det.renal && det.sideUnknown)
+    pending.push({id:'r_side', text:'Renal artery — left, right, or bilateral?',
+      options:['Left','Right','Bilateral'],
+      resolve:(ans)=>{ det.leftSide=true; det.rightSide=ans==='Bilateral';
+                       det.bilateral=ans==='Bilateral'; det.sideUnknown=false; }});
+  if(det.diagnosticAngio && !det.trueDiagnostic)
+    pending.push({id:'r_diag', text:'Was this a true independent diagnostic arteriogram (prior study unavailable/inadequate)?',
+      options:['Yes — bill with XU modifier','No — bundled'],
+      resolve:(ans)=>{ det.trueDiagnostic=ans.startsWith('Yes'); }});
+  // Ask catheter selectivity for any diagnostic-only renal side
+  const hasDiagOnlyRenal = (det.rightAngio&&!det.rightStent&&!det.rightPta)
+                         || (det.leftAngio &&!det.leftStent &&!det.leftPta)
+                         || (det.diagnosticAngio&&!det.stent&&!det.pta);
+  if(hasDiagOnlyRenal && det.cathSelectivity===undefined)
+    pending.push({id:'r_cath', text:'Diagnostic renal angiogram — how far was the catheter advanced on the diagnostic side?',
       options:['Main renal artery only (1st order → 36251/36252)','Into branch vessels (2nd order+ → 36253/36254)'],
-      resolve:(ans)=>{det.cathSelectivity=ans.includes('branch')?'second':'first';}});
+      resolve:(ans)=>{ det.cathSelectivity=ans.includes('branch')?'second':'first'; }});
   if(det.sedationMin===0)
-    pending.push({id:'r_sed',text:'Moderate sedation time (minutes)? Enter 0 if none.',type:'number',resolve:(val)=>{det.sedationMin=parseInt(val)||0;}});
+    pending.push({id:'r_sed', text:'Moderate sedation time (minutes)? Enter 0 if none.', type:'number',
+      resolve:(val)=>{ det.sedationMin=parseInt(val)||0; }});
   return pending;
 }
 
 function buildRenalCodes(det, billing) {
-  const codes=[],flags=[];
-  const pro=billing==='pro';
-  if(det.stent){
-    codes.push({code:'37236',desc:'Arterial stent, initial vessel (renal/visceral)'});
-    if(det.bilateral) codes.push({code:'+37237',desc:'Arterial stent, additional vessel (contralateral renal)'+(pro?'':' ⚠️ APC packaged')});
-    flags.push({type:'prompt',text:'Stent device C-code required on facility claim (e.g. C1874/C1887).'});
-    // When intervention is done, catheterization is bundled into intervention code — use 36245/36247
-    if(det.diagnosticAngio&&det.trueDiagnostic){
-      const mod=pro?'-26-XU':'-XU';
-      if(det.renal){codes.push({code:det.bilateral?`75724${mod}`:`75722${mod}`,desc:`Renal arteriogram${det.bilateral?', bilateral':''} — diagnostic drove intervention`+(pro?' (pro: -26)':'')});}
-      else codes.push({code:`75726${mod}`,desc:'Visceral arteriogram — diagnostic drove intervention'+(pro?' (pro: -26)':'')});
-      // Catheterization on intervention side is bundled into stent code — use component codes only if selectivity was higher than needed
-      flags.push({type:'flag',text:'Diagnostic arteriogram XU modifier: confirm prior study unavailable/inadequate; findings independently characterized pathology and drove treatment decision. Catheterization code bundled into stent code (37236) — no separate 36251 needed on intervention side.'});
-    }
-  } else if(det.pta){
-    codes.push({code:'37246',desc:'Balloon angioplasty, initial vessel (renal/visceral)'});
-    if(det.bilateral) codes.push({code:'+37247',desc:'Balloon angioplasty, additional vessel'+(pro?'':' ⚠️ APC packaged')});
-    if(det.diagnosticAngio&&det.trueDiagnostic){
-      const mod=pro?'-26-XU':'-XU';
-      if(det.renal){codes.push({code:det.bilateral?`75724${mod}`:`75722${mod}`,desc:`Renal arteriogram${det.bilateral?', bilateral':''} — diagnostic drove intervention`+(pro?' (pro: -26)':'')});}
-      else codes.push({code:`75726${mod}`,desc:'Visceral arteriogram — diagnostic drove intervention'+(pro?' (pro: -26)':'')});
-      flags.push({type:'flag',text:'Diagnostic arteriogram XU modifier: confirm prior study unavailable/inadequate; findings independently characterized pathology and drove treatment decision.'});
-    }
-  } else if(det.diagnosticAngio){
-    // Diagnostic angiogram only — no intervention — must bill catheterization code + angiogram code
-    if(det.trueDiagnostic){
-      const mod=pro?'-26-XU':'-XU';
-      // Renal uses dedicated 36251-36254 series (bundled — includes catheterization + angiography)
-      if(det.renal){
-        const isBilateral = det.bilateral;
-        const isSecondOrder = det.cathSelectivity === 'second';
-        if(isSecondOrder){
-          codes.push({code:isBilateral?'36254':'36253',desc:`Selective renal artery catheterization, 2nd order or higher${isBilateral?', bilateral':''} — BUNDLED: includes catheterization + angiography (no separate 75722/75724 needed)`});
-        } else {
-          codes.push({code:isBilateral?'36252':'36251',desc:`Selective renal artery catheterization, 1st order${isBilateral?', bilateral':''} — BUNDLED: includes catheterization + angiography (no separate 75722/75724 needed)`});
-        }
-        flags.push({type:'flag',text:'Renal artery catheterization codes (36251-36254) are BUNDLED — they include both the catheterization work AND the angiographic supervision/interpretation. Do NOT also bill 75722/75724 when using these codes. Confirm no intervention was performed; if stent or angioplasty was done, drop back to 36245/37236 instead.'});
+  const codes=[], flags=[];
+  const pro = billing==='pro';
+  const mod = pro ? '-26-XU' : '-XU';
+
+  // Ordered vessel lists
+  const sv=[]; // stented
+  if(det.leftStent)   sv.push('Left renal artery');
+  if(det.rightStent)  sv.push('Right renal artery');
+  if(det.celiacStent) sv.push('Celiac artery');
+  if(det.smaStent)    sv.push('SMA');
+  if(det.imaStent)    sv.push('IMA');
+  if(!sv.length && det.stent) sv.push('Renal/visceral artery');
+
+  const pv=[]; // PTA (not also stented)
+  if(det.leftPta)                              pv.push('Left renal artery');
+  if(det.rightPta)                             pv.push('Right renal artery');
+  if(det.celiacPta && !det.celiacStent)        pv.push('Celiac artery');
+  if(det.smaPta    && !det.smaStent)           pv.push('SMA');
+  if(det.imaPta    && !det.imaStent)           pv.push('IMA');
+  if(!pv.length && det.pta)                    pv.push('Renal/visceral artery');
+
+  // Diagnostic-only renal sides
+  const diagOnly=[];
+  if(det.rightAngio&&!det.rightStent&&!det.rightPta) diagOnly.push('Right renal artery');
+  if(det.leftAngio &&!det.leftStent &&!det.leftPta)  diagOnly.push('Left renal artery');
+
+  // Visceral vessels with any intervention (separate vascular family → 36245-59)
+  const visInt=[];
+  if(det.celiacStent||det.celiacPta) visInt.push('Celiac artery');
+  if(det.smaStent   ||det.smaPta)    visInt.push('SMA');
+  if(det.imaStent   ||det.imaPta)    visInt.push('IMA');
+
+  if(sv.length){
+    // ── Stent ──
+    sv.forEach((v,i)=>{ codes.push({code:i===0?'37236':'+37237',
+      desc:`Arterial stent, ${i===0?'initial':'additional'} vessel — ${v}`+(i>0&&!pro?' ⚠️ APC packaged':'')}); });
+    pv.forEach(v=>{ codes.push({code:'+37247',
+      desc:`Balloon angioplasty, additional vessel (alongside stent) — ${v}`+(!pro?' ⚠️ APC packaged':'')}); });
+    flags.push({type:'prompt', text:`Stent device C-code (C1874/C1887) required on facility claim (×${sv.length}).`});
+
+    visInt.forEach(v=>{ codes.push({code:'36245-59',
+      desc:`Selective catheterization, 1st order — ${v} (separate vascular family; -59/-XS modifier required)`}); });
+    if(visInt.length) flags.push({type:'flag',
+      text:'Celiac/SMA/IMA are separate vascular families from renal — 36245-59 is separately billable for each visceral vessel. Upgrade to 36246/36247 if catheter advanced beyond main trunk.'});
+
+    if(diagOnly.length){
+      if(det.trueDiagnostic){
+        const isBil=diagOnly.length>1, isSec=det.cathSelectivity==='second';
+        const cc=(isBil?(isSec?'36254':'36252'):(isSec?'36253':'36251'))+'-59';
+        codes.push({code:cc, desc:`Selective renal cath, ${isSec?'2nd order':'1st order'}${isBil?', bilateral':''} — ${diagOnly.join(' + ')} diagnostic only. BUNDLED — includes cath + angiography, do NOT also bill 75722/75724. Add -59/-XS.`});
+        flags.push({type:'flag', text:'36251-36254 are fully BUNDLED codes — no separate 75722/75724 on the diagnostic-only side.'});
       } else {
-        // Visceral diagnostic only — bill 36245 (first order off aorta for celiac/SMA/IMA) + 75726
-        codes.push({code:'36245',desc:'Selective catheterization, 1st order abdominal branch (celiac/SMA/IMA)'});
-        codes.push({code:`75726${mod}`,desc:'Visceral arteriogram, diagnostic'+(pro?' (pro: -26)':'')});
-        flags.push({type:'flag',text:'Each visceral vessel (celiac, SMA, IMA) is a separate vascular family — bill 36245 + 75726 for each vessel catheterized and imaged. If catheter went beyond the main trunk into branches, upgrade to 36246 (2nd order) or 36247 (3rd order).'});
+        flags.push({type:'flag', text:`⏳ Diagnostic angiogram of ${diagOnly.join(' + ')} — answer "Was this a true independent diagnostic?" above to generate the 36251/36252 code. If not independent, no separate cath/angio code applies.`});
+      }
+    }
+
+    // Diagnostic angio on same vessel as intervention
+    if(det.diagnosticAngio && det.trueDiagnostic && !diagOnly.length){
+      if(det.leftStent||det.rightStent){
+        codes.push({code:det.bilateralStent?`75724${mod}`:`75722${mod}`,
+          desc:`Renal arteriogram${det.bilateralStent?', bilateral':''} — diagnostic drove intervention`+(pro?' (pro: -26)':'')});
+        flags.push({type:'flag', text:'Renal diagnostic angio + intervention: bundled renal code (36251/36252) covers the catheterization on the intervention side — no separate 36245 needed for the renal artery.'});
+      }
+      if(visInt.length) codes.push({code:`75726${mod}`,
+        desc:'Visceral arteriogram — diagnostic drove intervention'+(pro?' (pro: -26)':'')});
+    }
+
+  } else if(pv.length){
+    // ── PTA only ──
+    pv.forEach((v,i)=>{ codes.push({code:i===0?'37246':'+37247',
+      desc:`Balloon angioplasty, ${i===0?'initial':'additional'} vessel — ${v}`+(i>0&&!pro?' ⚠️ APC packaged':'')}); });
+    visInt.forEach(v=>{ codes.push({code:'36245-59',
+      desc:`Selective catheterization, 1st order — ${v} (separate vascular family; -59/-XS)`}); });
+    if(det.diagnosticAngio && det.trueDiagnostic){
+      if(det.renal) codes.push({code:det.bilateral?`75724${mod}`:`75722${mod}`,
+        desc:`Renal arteriogram${det.bilateral?', bilateral':''} — diagnostic drove intervention`+(pro?' (pro: -26)':'')});
+      else codes.push({code:`75726${mod}`, desc:'Visceral arteriogram — diagnostic drove intervention'+(pro?' (pro: -26)':'')});
+      flags.push({type:'flag', text:'Diagnostic arteriogram XU modifier: confirm prior study unavailable/inadequate; findings independently characterized pathology and drove treatment decision.'});
+    }
+
+  } else if(det.diagnosticAngio){
+    // ── Diagnostic only — no intervention ──
+    if(det.trueDiagnostic){
+      if(det.renal){
+        const isBil=det.bilateral, isSec=det.cathSelectivity==='second';
+        codes.push({code:isBil?(isSec?'36254':'36252'):(isSec?'36253':'36251'),
+          desc:`Selective renal artery catheterization, ${isSec?'2nd order or higher':'1st order'}${isBil?', bilateral':''} — BUNDLED: includes catheterization + angiography. Do NOT also bill 75722/75724.`});
+        flags.push({type:'flag', text:'36251-36254 are BUNDLED — include catheterization + angiographic S&I. Do NOT also bill 75722/75724. If intervention performed, switch to 37236/37246 component coding.'});
+      } else {
+        codes.push({code:'36245', desc:'Selective catheterization, 1st order abdominal branch (celiac/SMA/IMA)'});
+        codes.push({code:`75726${mod}`, desc:'Visceral arteriogram, diagnostic'+(pro?' (pro: -26)':'')});
+        flags.push({type:'flag', text:'Each visceral vessel (celiac, SMA, IMA) is a separate vascular family — bill 36245 + 75726 per vessel. Upgrade to 36246/36247 if catheter advanced beyond main trunk.'});
       }
     } else {
-      flags.push({type:'flag',text:'Diagnostic angiogram detected but prior study status unknown — answer the pending question above to determine whether XU modifier applies.'});
+      flags.push({type:'flag', text:'Diagnostic angiogram detected but prior study status unknown — answer the pending question above to determine if XU modifier applies.'});
     }
   }
-  if(det.ivus){codes.push({code:'37252',desc:'IVUS, initial vessel'});flags.push({type:'prompt',text:'IVUS: confirm saved permanent image with documented findings.'});}
+
   if(det.sedationMin>=10){
-    codes.push({code:'99152',desc:`Moderate sedation (${det.sedationMin} min)`});
+    codes.push({code:'99152', desc:`Moderate sedation (${det.sedationMin} min)`});
     const ex=Math.floor((det.sedationMin-15)/8);
-    if(ex>0){if(!pro)codes.push({code:'+99153',desc:`Moderate sedation, additional ×${ex}`});else flags.push({type:'facility',text:`99153 ×${ex}: facility-only.`});}
+    if(ex>0){ if(!pro) codes.push({code:'+99153', desc:`Moderate sedation, additional ×${ex}`});
+              else flags.push({type:'facility', text:`99153 ×${ex}: facility-only.`}); }
   }
   return {codes, flags};
 }
 
-// Parses a clock-time token like "1432", "14:32", or "2:32 pm" into minutes
-// since midnight. Returns null if it doesn't look like a valid time.
+
 function parseTimeToken(str, ampm){
   let h, m;
   const colonMatch = str.match(/^(\d{1,2}):(\d{2})$/);
@@ -1700,6 +1910,30 @@ function detectAortogramSignals(noteText){
   return {aortogramMentioned, bilateralLeg, unilateralLeg, anyAutoDetected: aortogramMentioned || bilateralLeg || unilateralLeg};
 }
 
+// Peripheral IVL facility C-codes (HOPD/ASC, 2025). These replace the CPT
+// base code AND the CPT IVL add-on on the facility claim — the C-code covers
+// the entire procedure including bundled angioplasty.
+// ATK = iliac, femoral, popliteal (C9764-C9767)
+// BTK = tibial/peroneal           (C9772-C9775)
+function ivlFacilityCode(territory, hasStent, hasAtherectomy){
+  const atk = (territory==='iliac' || territory==='femoropopliteal');
+  const btk = (territory==='tibioperoneal');
+  if(!atk && !btk) return null; // inframalleolar — no IVL C-code
+  const base = atk ? 'C976' : 'C977';
+  const offset = atk ? 4 : 2; // C9764/C9772 = IVL only
+  if(hasStent && hasAtherectomy) return base + (offset + 3); // C9767/C9775
+  if(hasAtherectomy)             return base + (offset + 2); // C9766/C9774
+  if(hasStent)                   return base + (offset + 1); // C9765/C9773
+  return base + offset;                                       // C9764/C9772
+}
+function ivlFacilityDesc(territory, hasStent, hasAtherectomy){
+  const atk = (territory==='iliac' || territory==='femoropopliteal');
+  const loc = atk ? 'iliac/femoral/popliteal' : 'tibial/peroneal';
+  const mods = [hasStent && 'stent', hasAtherectomy && 'atherectomy'].filter(Boolean);
+  const combo = mods.length ? ` + ${mods.join(' + ')}` : '';
+  return `Peripheral IVL${combo} — ${loc} (facility; replaces CPT base + add-on on facility claim)`;
+}
+
 function suggestCodes(){
   const codes = [];
   const flags = [];
@@ -1732,23 +1966,46 @@ function suggestCodes(){
       return;
     }
 
+    // IVL: facility mode → comprehensive C-code replaces CPT base + add-on.
+    // Pro mode → CPT add-on only (no C-code). Emitted before lesionConfirmed
+    // gate because IVL doesn't require stenosis/occlusion classification.
+    if(v.lithotripsy){
+      const hasStent = v.stent;
+      const hasAther = v.atherectomy;
+      if(billingMode==='facility'){
+        const cCode = ivlFacilityCode(v.territory, hasStent, hasAther);
+        if(cCode){
+          // C-code covers entire procedure — suppress CPT base + add-on for this vessel
+          codes.push({code:cCode, desc:ivlFacilityDesc(v.territory, hasStent, hasAther)});
+          // Stent device C-code still reported separately (packaged for payment but required for cost reporting)
+          if(hasStent) flags.push(`Stent device C-code (C1874/C1876/C1887) still required as separate line item on facility claim alongside ${cCode} for cost reporting — even though payment is packaged into the comprehensive APC.`);
+        } else {
+          flags.push(`${terr.label} has no IVL facility C-code — verify with your MAC before submitting.`);
+        }
+      } else {
+        // Professional mode: CPT add-on only
+        if(terr.ivl){
+          codes.push({code:'+'+terr.ivl.code, desc:`${terr.label} — intravascular lithotripsy add-on — ${v.vessel} (reportable up to ${terr.ivl.maxPerLeg}x/leg in this territory)`});
+        } else {
+          flags.push(`${terr.label} has no CPT IVL add-on code — lithotripsy performed in ${v.vessel} is not separately billable here on the pro fee claim, verify.`);
+        }
+      }
+    }
+
     if(!v.lesionConfirmed){
       flags.push(`⏳ "${v.vessel}" (${terr.label}) — stenosis vs. occlusion/CTO wasn't stated, so this code is held back. Answer it above in "Needs your input" to generate it.`);
+      if(!v.lithotripsy) return; // IVL C-code already emitted above; still skip base code
       return;
     }
 
-    if(lookup.status === 'ok'){
+    // In facility mode with IVL, the C-code already covers the base procedure —
+    // suppress the CPT base code to avoid double-billing.
+    if(v.lithotripsy && billingMode==='facility' && ivlFacilityCode(v.territory, v.stent, v.atherectomy)){
+      // base CPT suppressed — C-code above covers it
+    } else if(lookup.status === 'ok'){
       codes.push({code: lookup.code, desc: `${terr.label} — ${modKey} (${complexity==='complex'?'occlusion':'stenosis'}), ${lookup.isAdditional?'additional':'initial'} vessel — ${v.vessel}`});
     } else if(lookup.status === 'over-max'){
       flags.push(`${terr.label}: exceeds max billable additional vessels (${terr.maxAdditional}) — review ${v.vessel} before submitting.`);
-    }
-
-    if(v.lithotripsy){
-      if(terr.ivl){
-        codes.push({code:'+'+terr.ivl.code, desc:`${terr.label} — intravascular lithotripsy add-on — ${v.vessel} (reportable up to ${terr.ivl.maxPerLeg}x/leg in this territory)`});
-      } else {
-        flags.push(`${terr.label} has no IVL add-on code — lithotripsy performed in ${v.vessel} is not separately billable here, verify.`);
-      }
     }
     if(modKey==='atherectomy' && v.territory==='iliac'){
       flags.push(terr.atherNote);
@@ -1928,7 +2185,7 @@ function renderPending(){
         <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
           <span style="font-size:11.5px;">or minutes directly</span>
           <input type="number" id="sedMinInput" min="0" placeholder="minutes">
-          <button data-confirm-case="sedation-none" data-value="none">No sedation</button>
+          <button type="button" onclick="onLeSedNone()">No sedation</button>
         </div>
       </div>
     `);
@@ -1969,23 +2226,15 @@ function renderPending(){
   const sedMinInput = document.getElementById('sedMinInput');
   if(sedMinInput){
     function commitSed(){
-      const val = parseInt(sedMinInput.value, 10);
+      const raw = sedMinInput.value.trim();
+      if(raw === '') return;
+      const val = parseInt(raw, 10);
       if(!isNaN(val) && val>=0){ caseAnswers.sedationAnswered=true; caseAnswers.sedationMinutes=val; renderAll(); }
     }
     sedMinInput.addEventListener('keydown', e=>{ if(e.key==='Enter') commitSed(); });
-    sedMinInput.addEventListener('blur', commitSed);
+    // No blur — races with "No sedation" button click on iOS
   }
-  const sedBtn = document.getElementById('confirmSedMinBtn');
-  if(sedBtn){
-    sedBtn.addEventListener('click', ()=>{
-      const val = parseInt(document.getElementById('sedMinInput').value, 10);
-      if(!isNaN(val) && val>=0){
-        caseAnswers.sedationAnswered = true;
-        caseAnswers.sedationMinutes = val;
-        renderAll();
-      }
-    });
-  }
+  // sedMinInput confirm button removed — handled by attachSedationHandlers
   const sedTimesBtn = document.getElementById('confirmSedTimesBtn');
   if(sedTimesBtn){
     sedTimesBtn.addEventListener('click', ()=>{
@@ -2073,7 +2322,7 @@ const NOTEGEN_VESSEL_MAP = [
   [/profunda|deep femoral|\bpfa\b/, 'profunda'],
   [/\bsfa\b|superficial femoral/, 'sfa'],
   [/\bpopliteal\b/, 'popliteal'],
-  [/tibioperoneal trunk|\btp trunk\b/, 'tptrunk'],
+  [/tibioperoneal trunk|\btp trunk\b|\btpt\b/, 'tptrunk'],
   [/\banterior tibial\b|\bata\b/, 'at'],
   // PTA is deliberately NOT mapped here — in this tool (and standard IR
   // shorthand) it means percutaneous transluminal angioplasty, the same
@@ -2100,6 +2349,8 @@ const NOTEGEN_ABBREV_LEADING_MAP = [
   [/^iia\b/, 'internalIliac'],
   [/^cfa\b/, 'cfa'],
   [/^sfa\b/, 'sfa'],
+  [/^fem\b/, 'sfa'],
+  [/^tpt\b/, 'tptrunk'],
   [/^pop(lit)?\b/, 'popliteal'],
   [/^at\b/, 'at'],
   [/^pt\b/, 'pt'],
@@ -2385,7 +2636,7 @@ function ngComputeSides(){
 const NOTEGEN_TERRITORY_BY_KEY = {
   commonIliac:'iliac', externalIliac:'iliac', internalIliac:'iliac',
   cfa:'femoropopliteal', profunda:'femoropopliteal', sfa:'femoropopliteal', popliteal:'femoropopliteal',
-  at:'tibioperoneal', pt:'tibioperoneal', peroneal:'tibioperoneal',
+  tptrunk:'tibioperoneal', at:'tibioperoneal', pt:'tibioperoneal', peroneal:'tibioperoneal',
   dp:'inframalleolar'
 };
 
@@ -2663,11 +2914,7 @@ function ngRenderPending(){
     }
     const sedDetected = extractSedationMinutes(ngInterventionText() + ' ' + ngFindingsText());
     if(sedDetected===null && !ngSedationAnswered){
-      items.push(`<div class="pending-item">
-        <div class="ptext"><b>Sedation time?</b> Type minutes and press Enter (or tap away)</div>
-        <input type="number" id="ngSedMinInput" min="0" placeholder="minutes" style="width:90px; display:inline-block;">
-        <button data-ng-sedation-none="1">No sedation</button>
-      </div>`);
+      items.push(buildSedationPendingHTML('ngSed'));
     }
     const legAngioTier = ngLegAngiogramTier();
     if(legAngioTier !== 'none' && ngLegAngiogramAnswer === null){
@@ -2698,32 +2945,18 @@ function ngRenderPending(){
   list.querySelectorAll('[data-ng-us-guidance]').forEach(b=>{
     b.addEventListener('click', ()=>{ ngUsGuidanceAnswer = (b.dataset.ngUsGuidance === 'yes'); ngRenderAll(); });
   });
-  list.querySelectorAll('[data-ng-sedation-none]').forEach(b=>{
-    b.addEventListener('click', ()=>{ ngSedationAnswered = true; ngSedationMinutes = 0; ngRenderAll(); });
-  });
+  // [data-ng-sedation-none] replaced by attachSedationHandlers above
   list.querySelectorAll('[data-ng-legangio]').forEach(b=>{
     b.addEventListener('click', ()=>{ ngLegAngiogramAnswer = (b.dataset.ngLegangio === 'yes'); ngRenderAll(); });
   });
   list.querySelectorAll('[data-ng-aortogram-tier]').forEach(b=>{
     b.addEventListener('click', ()=>{ ngAortogramTierAnswer = (b.dataset.ngAortogramTier === 'yes'); ngRenderAll(); });
   });
-  // Sedation auto-commit on Enter or blur — no Save button needed
-  const sedInput = document.getElementById('ngSedMinInput');
-  if(sedInput){
-    function commitSedation(){
-      const val = parseInt(sedInput.value, 10);
-      if(!isNaN(val) && val>=0){ ngSedationAnswered = true; ngSedationMinutes = val; ngRenderAll(); }
-    }
-    sedInput.addEventListener('keydown', e=>{ if(e.key==='Enter') commitSedation(); });
-    sedInput.addEventListener('blur', commitSedation);
-  }
-  const sedBtn = document.getElementById('ngConfirmSedMinBtn');
-  if(sedBtn){
-    sedBtn.addEventListener('click', ()=>{
-      const val = parseInt(document.getElementById('ngSedMinInput').value, 10);
-      if(!isNaN(val) && val>=0){ ngSedationAnswered = true; ngSedationMinutes = val; ngRenderAll(); }
-    });
-  }
+  // Sedation time-calculator (shared UI)
+  attachSedationHandlers('ngSed',
+    (mins)=>{ ngSedationAnswered = true; ngSedationMinutes = mins; ngRenderAll(); },
+    ()=>{ ngSedationAnswered = true; ngSedationMinutes = 0; ngRenderAll(); }
+  );
 }
 
 function ngResolvedUsGuidance(){
@@ -3192,22 +3425,40 @@ function ngSuggestCodes(){
         flags.push(`${ngSideLabel(side)} ${terr.label}: "${modKey}" isn't a valid modality in this territory (e.g. inframalleolar is angioplasty-only) — verify ${vesselLabel} manually.`);
         return;
       }
+      // IVL: facility mode → comprehensive C-code; pro mode → CPT add-on.
+      // Emitted before lesionConfirmed gate — IVL doesn't need stenosis/occlusion classification.
+      if(g.some(r=>r.treatment.lithotripsy)){
+        const hasStent = g.some(r=>r.treatment.stent);
+        const hasAther = g.some(r=>r.treatment.atherectomy);
+        if(ngBillingMode==='facility'){
+          const cCode = ivlFacilityCode(territory, hasStent, hasAther);
+          if(cCode){
+            codes.push({code:cCode, desc:`${ngSideLabel(side)} `+ivlFacilityDesc(territory, hasStent, hasAther)});
+            if(hasStent) flags.push(`${ngSideLabel(side)} stent device C-code (C1874/C1876/C1887) still required as separate line item on facility claim alongside ${cCode} for cost reporting — payment is packaged into the comprehensive APC.`);
+          } else {
+            flags.push(`${ngSideLabel(side)} ${terr.label} has no IVL facility C-code — verify with your MAC before submitting.`);
+          }
+        } else {
+          if(terr.ivl){
+            codes.push({code:'+'+terr.ivl.code, desc:`${ngSideLabel(side)} ${terr.label} — intravascular lithotripsy add-on — ${vesselLabel} (reportable up to ${terr.ivl.maxPerLeg}x/leg in this territory)`});
+          } else {
+            flags.push(`${ngSideLabel(side)} ${terr.label} has no CPT IVL add-on code — lithotripsy performed in ${vesselLabel} is not separately billable here on the pro fee claim, verify.`);
+          }
+        }
+      }
+
       if(!confirmed){
         flags.push(`⏳ ${ngSideLabel(side)} "${vesselLabel}" (${terr.label}) — stenosis vs. occlusion/CTO wasn't stated, so this code is held back. Answer it above in "Needs your input" to generate it.`);
         return;
       }
-      if(lookup.status === 'ok'){
+      // In facility mode with IVL, the C-code covers the base procedure — suppress CPT base code.
+      const ivlFacility = g.some(r=>r.treatment.lithotripsy) && ngBillingMode==='facility' && ivlFacilityCode(territory, g.some(r=>r.treatment.stent), g.some(r=>r.treatment.atherectomy));
+      if(ivlFacility){
+        // base CPT suppressed — C-code above covers it
+      } else if(lookup.status === 'ok'){
         codes.push({code: lookup.code, desc: `${ngSideLabel(side)} ${terr.label} — ${modKey} (${complexity==='complex'?'occlusion':'stenosis'}), ${lookup.isAdditional?'additional':'initial'} vessel — ${vesselLabel}`});
       } else if(lookup.status === 'over-max'){
         flags.push(`${ngSideLabel(side)} ${terr.label}: exceeds max billable additional vessels (${terr.maxAdditional}) — review ${vesselLabel} before submitting.`);
-      }
-
-      if(g.some(r=>r.treatment.lithotripsy)){
-        if(terr.ivl){
-          codes.push({code:'+'+terr.ivl.code, desc:`${ngSideLabel(side)} ${terr.label} — intravascular lithotripsy add-on — ${vesselLabel} (reportable up to ${terr.ivl.maxPerLeg}x/leg in this territory)`});
-        } else {
-          flags.push(`${ngSideLabel(side)} ${terr.label} has no IVL add-on code — lithotripsy performed in ${vesselLabel} is not separately billable here, verify.`);
-        }
       }
       if(modKey==='atherectomy' && territory==='iliac'){
         flags.push(terr.atherNote);
