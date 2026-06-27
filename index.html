@@ -1694,12 +1694,13 @@ function parseVenousText(text) {
   det.ivcInsert = /ivc filter|inferior vena cava filter|filter (?:was )?placed|filter insertion/.test(low) && !/retriev|remov/.test(low);
   det.ivcRetrieve = /(?:ivc filter|filter) (?:was )?(?:retriev|remov)|filter retrieval/.test(low);
   det.ivus = /\bivus\b|intravascular ultrasound/.test(low);
-  det.ivusCount = 1;
-  if(det.ivus){const m=low.match(/(\d)\s*vessel[^.]*?ivus|ivus[^.]*?(\d)\s*vessel/);if(m)det.ivusCount=parseInt(m[1]||m[2]);else if(det.bilateral)det.ivusCount=2;}
   det.bilateralKw = /\bbilat(?:eral)?\b|\bbil\b/.test(low);
   det.leftSide = /\bleft\b/.test(low);
   det.rightSide = /\bright\b/.test(low);
   det.bilateral = det.bilateralKw||(det.leftSide&&det.rightSide);
+  // IVUS count: explicit "N vessel" pattern wins; else bilateral intervention → 2 vessels.
+  det.ivusCount = 1;
+  if(det.ivus){const m=low.match(/(\d)\s*vessel[^.]*?ivus|ivus[^.]*?(\d)\s*vessel/);if(m)det.ivusCount=parseInt(m[1]||m[2]);else if(det.bilateral)det.ivusCount=2;}
   det.lateralityUnknown = !det.bilateral&&!det.leftSide&&!det.rightSide&&(det.stent||det.venoplasty);
   det.venogram = /venogram|venography|venacavogram|cavogram/.test(low);
   // Venous stent/venoplasty almost always involves a diagnostic venogram —
