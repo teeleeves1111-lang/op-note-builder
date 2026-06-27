@@ -566,8 +566,8 @@ const CODE_TABLE = {
     label: "Iliac",
     maxAdditional: 2,
     modalities: {
-      angioplasty: {straightforward:['37254','37255'], complex:['37258','37259']},
-      stent: {straightforward:['37256','37257'], complex:['37260','37261']}
+      angioplasty: {straightforward:['37254','37255'], complex:['37256','37257']},
+      stent: {straightforward:['37258','37259'], complex:['37260','37261']}
     },
     ivl: {code:'37262', maxPerLeg:3},
     atherNote: "Iliac atherectomy is not part of this code family — use Category III code 0238T, verify separately."
@@ -2229,7 +2229,7 @@ function suggestCodes(){
     const modKey = modalityKey(v);
     const complexity = v.lesion;
     // Count separately per side so that right iliac stent and left iliac stent
-    // each get the initial-vessel slot (37256-RT, 37256-LT) rather than one
+    // each get the initial-vessel slot (37258-RT, 37258-LT) rather than one
     // getting initial and the other getting additional.
     const countKey = v.territory + (v.side ? '|'+v.side : '');
     const count = territoryCount[countKey] || 0;
