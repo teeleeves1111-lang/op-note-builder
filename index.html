@@ -869,8 +869,22 @@ function segmentByVessel(text){
       // Includes single-letter r/l (e.g. "r cia stent") in addition to
       // the spelled-out left/right and lt/rt two-letter forms.
       const stripped = clauseLow.replace(/^(left|right|bilateral|bilat|bil|lt|rt|\br\b|\bl\b)\s+/, '');
-      for(const [re, terr, name] of TAB1_ABBREV_VESSEL_MAP){
-        if(re.test(stripped)){ matches = [{index:0, territory:terr, vessel:name}]; break; }
+
+      // Ambiguous single-token abbreviations that could be either a vessel name
+      // OR a modality on the preceding vessel (e.g. "left eia plasty and at" →
+      // "at" = atherectomy on EIA, not a new Anterior Tibial vessel row).
+      // Treat them as modality continuations when: the clause is ONLY that token
+      // (no accompanying modality word), there's an established prior vessel,
+      // and the token doesn't have a modality word following it.
+      const bareModalityAbbrevs = /^(at|ather|atherect|phoenix|rotoblator|rotablator|ivl|dcb|plasty|pta|stent)$/i;
+      if(bareModalityAbbrevs.test(stripped) && lastKey && !(/angioplasty|plasty|stent|atherectomy|ivl|dcb|balloon/i.test(stripped.replace(bareModalityAbbrevs,'').trim()))){
+        // Fold this token into the preceding vessel's text so analyzeSegmentText picks it up
+        byKey[lastKey].text += ' ' + piece.text;
+        // Don't create a new vessel row for this piece
+      } else {
+        for(const [re, terr, name] of TAB1_ABBREV_VESSEL_MAP){
+          if(re.test(stripped)){ matches = [{index:0, territory:terr, vessel:name}]; break; }
+        }
       }
     }
     if(matches.length){
@@ -954,19 +968,17 @@ function analyzeSegmentText(t){
   // today.
   const preExistingStentRef = /\bselect(?:ed|ing)?\s+the\s+(?:left\s+|right\s+)?[\w-]+\s+stent\b|\b\d+\s+stents?\s+in\s+place\b|\bknown\s+(?:to\s+have\s+)?(?:a\s+|an\s+)?stent\b|\bpreviously\s+placed\s+stent\b|\bexisting\s+stent\b/i;
   if(/\bstents?\b|stented|stenting|recanali[sz]|recanal\b|\bscaffold\b/.test(low) && !preExistingStentRef.test(low)) out.stent=true;
-  if(/atherectomy|laser|orbital|rotational|directional/.test(low)) out.atherectomy=true;
+  // 'at' alone = atherectomy abbreviation; 'at plasty/stent/angioplasty' = vessel name (Anterior Tibial)
+  if(/atherectomy|laser|orbital|rotational|directional|\bather\b|\batherect\b|\bphoenix\b|\brotoblator\b|\brotablator\b/.test(low)
+     || /\bat\b(?!\s*(?:angioplasty|plasty|pta|stent|balloon|ivl|dcb))/i.test(low)) out.atherectomy=true;
   if(/lithotripsy|shockwave|\bivl\b/.test(low)) out.lithotripsy=true;
   if(/drug.coated|\bdcb\b/.test(low)) out.dcb=true;
   // A stent's code already includes angioplasty for that vessel — don't
-  // auto-check both, since the checked boxes should reflect what's actually
-  // billed, not just every technique mentioned in the narrative (e.g.
-  // "balloon" inside "balloon-expandable stent" shouldn't trip this either).
-  // Stent and atherectomy codes both already include angioplasty for that
-  // vessel — either one suppresses the angioplasty checkbox. Lithotripsy
-  // (IVL) is different: it's an add-on only, with no base code of its own,
-  // so angioplasty stays checked as the real base modality when IVL is used
-  // alongside it (e.g. balloon angioplasty + IVL, both legitimately billed).
-  if(/angioplasty|\bplasty\b|\bpta\b|balloon/.test(low) && !out.dcb && !out.stent && !out.atherectomy) out.angioplasty=true;
+  // auto-check both. Atherectomy is different: atherectomy + angioplasty
+  // is a valid explicit combination (debulk then balloon) and the user
+  // should see both boxes; modalityKey() resolves to stentAtherectomy or
+  // atherectomy as appropriate for billing. Only stent suppresses angioplasty.
+  if(/angioplasty|\bplasty\b|\bpta\b|balloon/.test(low) && !out.dcb && !out.stent) out.angioplasty=true;
   if(/covered stent/.test(low)) out.stentType='covered';
   else if(/balloon.expandable/.test(low)) out.stentType='balloon-expandable';
   // BTK context (any mention of "BTK" alongside a stent/scaffold) implies
@@ -2178,6 +2190,22 @@ function suggestCodes(){
   const flags = [];
   const territoryCount = {};
   const rows = mergeBridgingVessels(vesselRows);
+
+  // Within each territory+side group, the vessel with the highest-value modality
+  // must take the initial slot (count=0) — payers deny add-on codes (+37285) when
+  // a lower-value initial code (37282) is paired with a higher-value modality.
+  // Sort so that within each territory|side, higher MODALITY_RANK rows come first.
+  // IVL adds +0.5 to rank since IVL+stent outranks plain stent for slot assignment.
+  const modRankFor = v => {
+    const base = MODALITY_RANK[modalityKey(v)] || 0;
+    return base + (v.lithotripsy ? 0.5 : 0);
+  };
+  rows.sort((a, b) => {
+    const ka = a.territory + '|' + (a.side || '');
+    const kb = b.territory + '|' + (b.side || '');
+    if(ka !== kb) return 0; // different groups — preserve original order
+    return modRankFor(b) - modRankFor(a); // descending rank within same group
+  });
 
   rows.forEach(v=>{
     const terr = CODE_TABLE[v.territory];
