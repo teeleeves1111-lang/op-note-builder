@@ -1581,7 +1581,9 @@ function buildFistuloCodes(det, billing) {
   // share a single 36215. Only add 75710 once; modifiers differ by scenario.
   const needsInflowCath = det.inflowFar || det.dxAngioConfirmed;
   if(needsInflowCath){
-    codes.push({code:'36215', desc:'Selective cath, first-order brachiocephalic branch — inflow artery'});
+    // -59/-XS required: 36215 crosses into a separate vascular family (brachiocephalic branch)
+    // from the dialysis circuit codes (36901-36909) — without it payers bundle and deny.
+    codes.push({code: billing==='pro'?'36215-59':'36215-59', desc:'Selective cath, first-order brachiocephalic branch — inflow artery (-59/-XS: separate vascular family from dialysis circuit)'});
   }
   if(det.inflowFar){
     // Arterial stent or angioplasty of inflow artery (≥2 cm from anastomosis)
