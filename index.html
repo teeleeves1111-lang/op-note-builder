@@ -639,6 +639,7 @@ function addVesselRow(prefill){
     id, territory:'femoropopliteal', vessel:'SFA/popliteal', lesion:'straightforward', lesionConfirmed:false,
     angioplasty:false, dcb:false, stent:false, stentType:'self-expanding', stentSize:'',
     atherectomy:false, atherType:'directional', lithotripsy:false, ivlSize:'',
+    thrombectomy:false,
     balloonSize:'', result:'good angiographic result with minimal residual stenosis'
   }, prefill||{}));
   renderVessels();
@@ -688,6 +689,7 @@ function renderVessels(){
         <label class="inline"><input type="checkbox" data-field="atherectomy" data-id="${v.id}" ${v.atherectomy?'checked':''}> Atherectomy</label>
         <label class="inline"><input type="checkbox" data-field="lithotripsy" data-id="${v.id}" ${v.lithotripsy?'checked':''}> Lithotripsy (IVL)</label>
         <label class="inline"><input type="checkbox" data-field="stent" data-id="${v.id}" ${v.stent?'checked':''}> Stent</label>
+        <label class="inline"><input type="checkbox" data-field="thrombectomy" data-id="${v.id}" ${v.thrombectomy?'checked':''}> Thrombectomy / Aspiration</label>
       </div>
     `;
     wrap.appendChild(block);
@@ -709,7 +711,7 @@ function renderVessels(){
       else v[field] = el.value;
       if(field==='lesion') v.lesionConfirmed = true;
       if(field==='territory'){ v.vessel = TERRITORY_VESSELS[v.territory][0]; renderVessels(); }
-      if(['angioplasty','dcb','atherectomy','lithotripsy','stent'].includes(field)) renderVessels();
+      if(['angioplasty','dcb','atherectomy','lithotripsy','stent','thrombectomy'].includes(field)) renderVessels();
       renderAll();
     };
     el.addEventListener('change', handler);
@@ -944,7 +946,7 @@ function segmentByVessel(text){
 function analyzeSegmentText(t){
   const low = t.toLowerCase();
   const out = {lesion:'straightforward', lesionConfirmed:false, angioplasty:false, dcb:false, stent:false,
-    atherectomy:false, lithotripsy:false, balloonSize:'', stentSize:'', stentType:'self-expanding',
+    atherectomy:false, lithotripsy:false, thrombectomy:false, balloonSize:'', stentSize:'', stentType:'self-expanding',
     result:'good result', bridgeWithPrevious:false, tpTrunkFlag:false};
 
   if(/tibioperoneal trunk|\btp trunk\b/.test(low)) out.tpTrunkFlag = true;
@@ -972,7 +974,7 @@ function analyzeSegmentText(t){
   if(/atherectomy|laser|orbital|rotational|directional|\bather\b|\batherect\b|\bphoenix\b|\brotoblator\b|\brotablator\b/.test(low)
      || /\bat\b(?!\s*(?:angioplasty|plasty|pta|stent|balloon|ivl|dcb))/i.test(low)) out.atherectomy=true;
   if(/lithotripsy|shockwave|\bivl\b/.test(low)) out.lithotripsy=true;
-  if(/drug.coated|\bdcb\b/.test(low)) out.dcb=true;
+  if(/\bthrombectomy\b|\baspiration\b|\bsuction\b|\bangiojet\b|\bmechanical thrombo/i.test(low)) out.thrombectomy=true;
   // A stent's code already includes angioplasty for that vessel — don't
   // auto-check both. Atherectomy is different: atherectomy + angioplasty
   // is a valid explicit combination (debulk then balloon) and the user
@@ -2110,7 +2112,7 @@ function mergeBridgingVessels(rows){
 }
 
 function hasModality(v){
-  return !!(v.angioplasty || v.dcb || v.stent || v.atherectomy || v.lithotripsy);
+  return !!(v.angioplasty || v.dcb || v.stent || v.atherectomy || v.lithotripsy || v.thrombectomy);
 }
 
 // Shared territory/modality/lesion -> CPT lookup, used by both the tab-1
@@ -2284,6 +2286,7 @@ function suggestCodes(){
     } else if(lookup.status === 'over-max'){
       flags.push(`${terr.label}: exceeds max billable additional vessels (${terr.maxAdditional}) — review ${v.vessel} before submitting.`);
     }
+
     if(modKey==='atherectomy' && v.territory==='iliac'){
       flags.push(terr.atherNote);
     }
@@ -2316,6 +2319,24 @@ function suggestCodes(){
 
   // ---- Sedation: auto-detect from text, else require an explicit answer ----
   let sedMin = extractSedationMinutes(noteText);
+  // ── Thrombectomy / Aspiration (37184 / +37185) ──────────────────────────
+  // Emitted once per case based on how many distinct vessel rows had thrombectomy
+  // flagged — NOT once per row. This prevents double-coding when aspiration
+  // language falls across multiple parsed rows (e.g. "common femoral and profunda")
+  // and makes the code independent of which row the parser attached it to.
+  // 37184 = initial vessel; +37185 = each additional vessel.
+  const thrombRows = rows.filter(v => v.thrombectomy);
+  if(thrombRows.length > 0){
+    // Use the side from the first thrombectomy row if all rows agree; otherwise no side tag
+    const thrombSide = thrombRows.every(v=>v.side===thrombRows[0].side) ? thrombRows[0].side : null;
+    const sideTag = thrombSide === 'right' ? '-RT' : thrombSide === 'left' ? '-LT' : '';
+    codes.push({code:'37184'+sideTag, desc:`Primary arterial mechanical thrombectomy / suction aspiration, initial vessel (non-bundled with revascularization codes)`});
+    if(thrombRows.length > 1){
+      codes.push({code:'+37185'+sideTag, desc:`Arterial mechanical thrombectomy, each additional vessel`});
+    }
+    flags.push(`37184 (thrombectomy): confirm separate documentation of clot burden, vessel(s) treated, and aspiration/mechanical technique — required to defend standalone billing alongside revascularization codes.`);
+  }
+
   let sedApprox = false;
   if(sedMin === null && caseAnswers.sedationAnswered){
     sedMin = caseAnswers.sedationMinutes; // 0 means "no sedation" was explicitly answered
