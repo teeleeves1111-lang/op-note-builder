@@ -1804,13 +1804,16 @@ function buildRenalCodes(det, billing) {
   const mod = pro ? '-26-XU' : '-XU';
 
   // Ordered vessel lists
-  const sv=[]; // stented
+  const sv=[]; // stented — order is intentional: renal before visceral (higher RVU convention)
   if(det.leftStent)   sv.push('Left renal artery');
   if(det.rightStent)  sv.push('Right renal artery');
   if(det.celiacStent) sv.push('Celiac artery');
   if(det.smaStent)    sv.push('SMA');
   if(det.imaStent)    sv.push('IMA');
   if(!sv.length && det.stent) sv.push('Renal/visceral artery');
+  // Note ordering for mixed renal+visceral: renal designated as initial vessel per
+  // convention (higher RVU); visceral vessels take additional slot(s). This is
+  // reflected in the code descriptions below.
 
   const pv=[]; // PTA (not also stented)
   if(det.leftPta)                              pv.push('Left renal artery');
@@ -1845,8 +1848,11 @@ function buildRenalCodes(det, billing) {
 
   if(sv.length){
     // ── Stent ──
+    const mixedRenalVisceral = sv.some(v=>v.includes('renal')) && sv.some(v=>!v.includes('renal'));
     sv.forEach((v,i)=>{ codes.push({code:i===0?'37236':'+37237',
-      desc:`Arterial stent, ${i===0?'initial':'additional'} vessel — ${v}`+(i>0&&!pro?' ⚠️ APC packaged':'')}); });
+      desc:`Arterial stent, ${i===0?'initial':'additional'} vessel — ${v}`
+        +(i===0 && mixedRenalVisceral ? ' (renal designated initial per higher-RVU convention)' : '')
+        +(i>0&&!pro?' ⚠️ APC packaged':'')}); });
     pv.forEach(v=>{ codes.push({code:'+37247',
       desc:`Balloon angioplasty, additional vessel (alongside stent) — ${v}`+(!pro?' ⚠️ APC packaged':'')}); });
     flags.push({type:'prompt', text:`Stent device C-code (C1874/C1887) required on facility claim (×${sv.length}).`});
