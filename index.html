@@ -829,6 +829,26 @@ const TAB1_ABBREV_VESSEL_MAP = [
 ];
 
 function segmentByVessel(text){
+  // "Kissing stents/balloons" = simultaneous bilateral CIA intervention at the
+  // aortic bifurcation. Expand to explicit bilateral common iliac terms so the
+  // clause parser produces two vessel rows (right CIA + left CIA) with correct
+  // per-side initial codes (37258-RT + 37258-LT), not one unspecified row.
+  // Handles: "kissing stents", "kissing iliac stents", "kissing cia stents",
+  //          "kissing balloon angioplasty", any combination.
+  if(/\bkissing\b/i.test(text)){
+    const hasStent       = /\bstents?\b/i.test(text);
+    const hasAngioplasty = /\bangioplasty\b|\bplasty\b|\bpta\b|\bballoon\b/i.test(text);
+    const hasIVL         = /\bivl\b|\blithotripsy\b/i.test(text);
+    const hasDCB         = /\bdcb\b|\bdrug.?coated\b/i.test(text);
+    const modalityWords  = [
+      hasStent       ? 'stent'       : null,
+      hasAngioplasty ? 'angioplasty' : null,
+      hasIVL         ? 'ivl'         : null,
+      hasDCB         ? 'dcb'         : null,
+    ].filter(Boolean).join(' ') || 'stent'; // default stent if bare "kissing"
+    text = `right common iliac ${modalityWords}, left common iliac ${modalityWords}`;
+  }
+
   const rawPieces = text.split(/[,.;]\s+|\s+and\s+/i);
   let cursor = 0;
   const clauses = [];
@@ -1424,6 +1444,7 @@ function parseFistuloText(text) {
   // Innominate/SVC always venous/central
   const unambiguousCentral = /\binnominate\b|\bbrachiocephalic\b|\bsvc\b/.test(low);
 
+  const centralKeyword = /\bcentral\b/.test(low);
   det.centralStent = false;
   det.centralVesselAmbiguous = false; // bare "subclavian stent" — need to ask artery vs vein
   if(centralVesselWithStent){
@@ -1437,8 +1458,44 @@ function parseFistuloText(text) {
       det.centralVesselAmbiguous = true;
     }
   }
+  // "central stent" keyword phrase → central segment stent even without a named vessel.
+  // Mirrors the centralPlasty keyword logic: "central" as an anatomical zone modifier
+  // on "stent" unambiguously means the central dialysis segment (+36908 territory).
+  if(!det.centralStent && !det.centralVesselAmbiguous && stentInText && centralKeyword){
+    det.centralStent = true;
+  }
 
-  det.angioplasty = /angioplasty|\bplasty\b|\bpta\b|balloon dilation|balloon angio/.test(low);
+  // Central segment angioplasty (+36907): fired by:
+  //   (a) "central" keyword + any plasty/angioplasty term (e.g. "central plasty")
+  //   (b) Named unambiguous central vessel + plasty (subclavian vein/innominate/SVC)
+  // +36907 is NOT emitted when +36908 (central stent) is already present —
+  // the stent add-on already includes all central angioplasty by CPT bundling rules.
+  const plastyInText = /angioplasty|\bplasty\b|\bpta\b|balloon dilation|balloon angio/.test(low);
+  const centralVesselWithPlasty = plastyInText && (
+    (unambiguousCentral && !subclavianArtery) ||
+    (subclavianVein && plastyInText) ||
+    centralKeyword
+  );
+  det.centralPlasty = centralVesselWithPlasty && !det.centralVesselAmbiguous;
+
+  det.angioplasty = plastyInText;
+  // Peripheral angioplasty: plasty present AND not entirely central
+  // "central plasty" alone (no main body / peripheral plasty) → angioplasty = false
+  // Both present (e.g. "main body plasty, central plasty") → angioplasty = true
+  // Suppress peripheral base upgrade when the ONLY plasty detected is central.
+  // Triggered by: "central" keyword alone, OR unambiguous central vessel name (innominate/SVC),
+  // OR subclavian vein — as long as no peripheral-segment anchor words are present and only
+  // one plasty mention exists in the text (two plasty words = peripheral + central both present).
+  const isCentralOnlyVessel = (unambiguousCentral || subclavianVein) && !subclavianArtery;
+  // Suppress peripheral base upgrade only when EVERY plasty mention is central.
+  // Guard: if a stent is also present alongside the plasty + central vessel,
+  // the plasty is peripheral (e.g. "avf plasty, innominate stent") — don't suppress.
+  const onlyCentralPlasty = det.centralPlasty &&
+    (centralKeyword || isCentralOnlyVessel) &&
+    !stentInText && // stent present → the plasty is likely peripheral, not central
+    !/\bmain\s*body\b|\bperipheral\b|\bgraft\b|\banatom|\bcephalic\b|\boutflow\b/.test(low) &&
+    !/(?:plasty|angioplasty|pta).*(?:plasty|angioplasty|pta)/.test(low); // two plasty tokens = mixed
+  if(onlyCentralPlasty) det.angioplasty = false; // suppress peripheral base upgrade
   // Peripheral stent: stent present AND not entirely accounted for by central vessel
   det.stent = stentInText && !det.centralStent && !det.centralVesselAmbiguous;
   det.ivus = /\bivus\b|intravascular ultrasound/.test(low);
@@ -1558,6 +1615,7 @@ function buildFistuloCodes(det, billing) {
     if(det.stent) base={code:'36903',desc:'Fistulogram with stent (includes angioplasty if performed)'};
     else if(det.angioplasty) base={code:'36902',desc:'Fistulogram with angioplasty'};
     else if(det.centralStent) base={code:'36901',desc:'Fistulogram (base for central segment stent add-on)'};
+    else if(det.centralPlasty && !det.angioplasty) base={code:'36901',desc:'Fistulogram (base for central segment angioplasty add-on)'};
     else base={code:'36901',desc:'Fistulogram, diagnostic'};
   } else {
     if(det.stent) base={code:'36906',desc:'Fistulogram + thrombectomy + peripheral stent'};
@@ -1569,6 +1627,12 @@ function buildFistuloCodes(det, billing) {
   if(det.centralStent){
     codes.push({code:'+36908', desc:'Transcatheter stent placement, central dialysis segment (add-on — includes all central angioplasty)'});
     flags.push({type:'flag', text:'Central segment stent (+36908): confirm stent was placed in subclavian, innominate, or SVC — not cephalic arch (peripheral).'});
+  } else if(det.centralPlasty){
+    // +36907: central segment angioplasty only (no central stent).
+    // +36908 already includes all angioplasty when a central stent was placed,
+    // so +36907 is suppressed when centralStent is true.
+    codes.push({code:'+36907', desc:'Transluminal angioplasty, central dialysis segment (add-on) — confirm vessel is subclavian, innominate, or SVC; cephalic arch is peripheral'});
+    flags.push({type:'flag', text:'+36907 (central plasty): verify the treated segment is subclavian vein, innominate vein, or SVC — NOT cephalic arch (which is peripheral and bundled into 36902/36903).'});
   }
   if(det.coilEmbo)
     codes.push({code:'+36909', desc:'Embolization of side branch(es), dialysis circuit (coil embolization for AVF/AVG maturation or flow augmentation)'});
