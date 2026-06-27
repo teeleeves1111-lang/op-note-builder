@@ -170,6 +170,9 @@
   }
   .code-item .code{font-family:var(--mono);font-weight:800;font-size:13px;min-width:80px;color:var(--accent);}
   .code-item .desc{font-size:12px;color:var(--ink-soft);line-height:1.4;}
+  .code-item.device-placeholder{background:#fffbeb;border-left-color:#d97706;}
+  .code-item.device-placeholder .code{color:#b45309;}
+  .code-item.device-placeholder .desc{color:#92400e;}
 
   /* ---- Flags / pending ---- */
   .flag-item{
@@ -1288,8 +1291,10 @@ function renderOtherCodes(codes, flags) {
   flagEl.innerHTML = '';
   codes.forEach(c => {
     const div = document.createElement('div');
-    div.className = 'code-item';
-    div.innerHTML = `<span class="code">${c.code}</span><span class="desc">${c.desc}</span>`;
+    const isDevice = c.code === 'C????';
+    div.className = 'code-item' + (isDevice ? ' device-placeholder' : '');
+    const prefix = isDevice ? '⚠️ ' : '';
+    div.innerHTML = `<span class="code">${c.code}</span><span class="desc">${prefix}${c.desc}</span>`;
     codeEl.appendChild(div);
   });
   flags.forEach(f => {
@@ -1623,6 +1628,13 @@ function buildFistuloCodes(det, billing) {
     else base={code:'36904',desc:'Fistulogram + thrombectomy (no peripheral intervention)'};
   }
   codes.push(base);
+  // Facility stent device placeholder — peripheral stent base codes only
+  if(billing==='facility' && det.stent){
+    const fistuloStentUnits = 1; // peripheral stent: typically 1 device; biller adjusts if multiple
+    for(let i=0;i<fistuloStentUnits;i++){
+      codes.push({code:'C????', desc:'Stent device code — confirm: C1874 (non-coronary, safely-sheathed) · C1876 (non-coronary, non-sheathed) · C1887 (vascular NEC) — required for cost reporting; missing → claim rejection'});
+    }
+  }
   // Central segment stent — add-on to any base code
   if(det.centralStent){
     codes.push({code:'+36908', desc:'Transcatheter stent placement, central dialysis segment (add-on — includes all central angioplasty)'});
@@ -1750,7 +1762,16 @@ function buildVenousCodes(det, billing) {
       codes.push({code:'37238',desc:`Venous stent${side?', '+side+' iliac':''}`});
       codes.push({code:'36010',desc:'Catheter placement, IVC (catheter advanced to IVC for stenting/venogram)'});
     }
-    flags.push({type:'prompt',text:'Stent device C-code required on facility claim (e.g. C1874). Missing → claim rejection.'});
+    if(!pro){
+      // Facility: emit placeholder device line item(s) — biller must confirm exact C-code
+      // before submitting. One unit per physical stent implanted.
+      const stentUnits = det.bilateral ? 2 : 1;
+      for(let i=0;i<stentUnits;i++){
+        codes.push({code:'C????', desc:'Stent device code — confirm: C1874 (non-coronary, safely-sheathed) · C1876 (non-coronary, non-sheathed) · C1887 (vascular NEC) — required for cost reporting; missing → claim rejection'+(stentUnits>1?' (unit '+(i+1)+' of '+stentUnits+')':'')});
+      }
+    } else {
+      flags.push({type:'prompt',text:'Facility claim: stent device C-code (C1874/C1876/C1887) required per stent implanted — confirm device before submitting.'});
+    }
   } else if(det.venoplasty){
     if(det.bilateral){
       codes.push({code:'37248',desc:'Venoplasty, initial vein'});
@@ -1936,7 +1957,14 @@ function buildRenalCodes(det, billing) {
         +(i>0&&!pro?' ⚠️ APC packaged':'')}); });
     pv.forEach(v=>{ codes.push({code:'+37247',
       desc:`Balloon angioplasty, additional vessel (alongside stent) — ${v}`+(!pro?' ⚠️ APC packaged':'')}); });
-    flags.push({type:'prompt', text:`Stent device C-code (C1874/C1887) required on facility claim (×${sv.length}).`});
+    if(!pro){
+      // Facility: one placeholder device line per stented vessel
+      sv.forEach((_,i)=>{
+        codes.push({code:'C????', desc:'Stent device code — confirm: C1874 (non-coronary, safely-sheathed) · C1876 (non-coronary, non-sheathed) · C1887 (vascular NEC) — required for cost reporting; missing → claim rejection'+(sv.length>1?' (unit '+(i+1)+' of '+sv.length+')':'')});
+      });
+    } else {
+      flags.push({type:'prompt', text:`Facility claim: stent device C-code (C1874/C1887) required ×${sv.length} — confirm device before submitting.`});
+    }
 
     // 36245-59 for visceral vessels: only PTA-only (stented vessels have cath bundled into 37236/37237)
     visIntPtaOnly.forEach(v=>{ codes.push({code:'36245-59',
@@ -2634,9 +2662,12 @@ function renderCodes(){
   const {codes, flags} = suggestCodes();
   const codeOut = document.getElementById('codeOut');
   const flagOut = document.getElementById('flagOut');
-  codeOut.innerHTML = codes.length ? codes.map(c=>`
-    <div class="code-item"><div class="code">${c.code}</div><div class="desc">${c.desc}</div></div>
-  `).join('') : `<div class="hint">No vessels yet.</div>`;
+  codeOut.innerHTML = codes.length ? codes.map(c=>{
+    const isDevice = c.code==='C????';
+    const cls = isDevice ? ' device-placeholder' : '';
+    const prefix = isDevice ? '⚠️ ' : '';
+    return `<div class="code-item${cls}"><div class="code">${c.code}</div><div class="desc">${prefix}${c.desc}</div></div>`;
+  }).join('') : `<div class="hint">No vessels yet.</div>`;
   // Pending (⏳) items already have an interactive prompt in the panel above —
   // skip them here to avoid showing the same blocked item twice.
   flagOut.innerHTML = flags.filter(f=>!f.startsWith('⏳')).map(f=>`<div class="flag-item"><b>Review:</b>&nbsp;${f}</div>`).join('');
@@ -3914,9 +3945,12 @@ function ngRenderCodes(){
   const {codes, flags} = ngSuggestCodes();
   const codeOut = document.getElementById('ngCodeOut');
   const flagOut = document.getElementById('ngFlagOut');
-  codeOut.innerHTML = codes.length ? codes.map(c=>`
-    <div class="code-item"><div class="code">${c.code}</div><div class="desc">${c.desc}</div></div>
-  `).join('') : `<div class="hint">No codes yet.</div>`;
+  codeOut.innerHTML = codes.length ? codes.map(c=>{
+    const isDevice = c.code==='C????';
+    const cls = isDevice ? ' device-placeholder' : '';
+    const prefix = isDevice ? '⚠️ ' : '';
+    return `<div class="code-item${cls}"><div class="code">${c.code}</div><div class="desc">${prefix}${c.desc}</div></div>`;
+  }).join('') : `<div class="hint">No codes yet.</div>`;
   // ⏳ items already have an interactive prompt in "Needs your input" above —
   // skip them here to avoid showing the same blocked item twice.
   flagOut.innerHTML = flags.filter(f=>!f.startsWith('⏳')).map(f=>`<div class="flag-item"><b>Review:</b>&nbsp;${f}</div>`).join('');
