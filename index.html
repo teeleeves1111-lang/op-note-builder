@@ -1393,9 +1393,40 @@ function parseFistuloText(text) {
   if (!det.isAVF && !det.isAVG) det.accessTypeUnknown = true;
   det.thrombectomy = /thrombo?ect|declot|lysis of clot/.test(low);
   det.interventionAsked = false;
+
+  // Central vessel stent detection — subclavian/innominate/SVC stent is always
+  // a central dialysis segment intervention (+36908), NOT a peripheral stent (36903).
+  // However, "subclavian" alone is ambiguous: subclavian VEIN = central (+36908),
+  // subclavian ARTERY = inflow artery (triggers 36215 + angio question instead).
+  // Innominate and SVC are unambiguously venous/central.
+  const stentInText = /\bstent/.test(low) && !/prior stent|existing stent|stent in place|stent noted/.test(low);
+  det.stentInText = stentInText; // stored for use in pending resolver closures
+  const centralVesselRe = /\bsubclavian\b|\binnominate\b|\bbrachiocephalic\b|\bsvc\b/;
+  const centralVesselWithStent = stentInText && centralVesselRe.test(low);
+  // Subclavian artery explicitly named → treat as inflow artery, not central vein
+  const subclavianArtery = /subclavian artery|subclavian a\b/.test(low);
+  // Subclavian vein explicitly named → unambiguous central stent
+  const subclavianVein = /subclavian vein|subclavian v\b/.test(low);
+  // Innominate/SVC always venous/central
+  const unambiguousCentral = /\binnominate\b|\bbrachiocephalic\b|\bsvc\b/.test(low);
+
   det.centralStent = false;
+  det.centralVesselAmbiguous = false; // bare "subclavian stent" — need to ask artery vs vein
+  if(centralVesselWithStent){
+    if(unambiguousCentral || subclavianVein){
+      det.centralStent = true;
+    } else if(subclavianArtery){
+      // subclavian artery stent → inflow artery treatment, not central dialysis stent
+      // inflowMentioned will handle it below
+    } else {
+      // bare "subclavian stent" — ambiguous, ask user
+      det.centralVesselAmbiguous = true;
+    }
+  }
+
   det.angioplasty = /angioplasty|\bplasty\b|\bpta\b|balloon dilation|balloon angio/.test(low);
-  det.stent = /\bstent/.test(low) && !/prior stent|existing stent|stent in place|stent noted/.test(low);
+  // Peripheral stent: stent present AND not entirely accounted for by central vessel
+  det.stent = stentInText && !det.centralStent && !det.centralVesselAmbiguous;
   det.ivus = /\bivus\b|intravascular ultrasound/.test(low);
   det.usGuidance = /ultrasound.guided access|us.guided access|76937/.test(low);
   det.sedationMin = 0;
@@ -1406,11 +1437,19 @@ function parseFistuloText(text) {
   else if (sm2) det.sedationMin = parseInt(sm2[1]);
   // Any mention of an artery being treated (angioplasty/plasty/stent) in the
   // context of a fistulogram should trigger the inflow distance question —
-  // not just "inflow artery" shorthand. Brachial, radial, ulnar, or any
-  // generic "artery angioplasty" language qualifies.
+  // not just "inflow artery" shorthand. Brachial, radial, ulnar, subclavian
+  // artery, or any generic "artery angioplasty" language qualifies.
   det.inflowMentioned = /inflow artery|inflow vessel|arterial inflow/.test(low)
+    || (subclavianArtery && /angioplasty|\bpta\b|\bplasty\b|balloon|stent/.test(low))
     || (/(?:\bartery\b|\barterial\b|\bbrachial\b|\bbrach\b|\bradial\b|\bulnar\b|\baxillary\b)/.test(low)
         && /angioplasty|\bpta\b|\bplasty\b|balloon|stent/.test(low));
+  // Track whether the inflow intervention was a stent (→ 37236) vs angioplasty (→ 37246).
+  // Only fire when stent language is immediately adjacent to the inflow artery name
+  // (within ~12 chars) to avoid false positives from a circuit stent elsewhere in the note.
+  // If angioplasty/plasty language appears near the inflow vessel, that wins over stent.
+  const inflowStentRe = /(?:brachial|brach|radial|ulnar|axillary|subclavian artery|inflow artery|inflow vessel)\b.{0,12}\bstent|\bstent\b.{0,12}(?:brachial|brach|radial|ulnar|axillary|subclavian artery|inflow artery)/i;
+  const inflowPlastyNearRe = /(?:brachial|brach|radial|ulnar|axillary|subclavian artery|inflow artery).{0,25}(?:angioplasty|\bplasty\b|\bpta\b)|(?:angioplasty|\bplasty\b|\bpta\b).{0,25}(?:brachial|brach|radial|ulnar|axillary|subclavian artery|inflow artery)/i;
+  det.inflowStent = det.inflowMentioned && inflowStentRe.test(low) && !inflowPlastyNearRe.test(low);
   det.inflowFar = /\d+\s*cm\s*from|far from anastomosis|proximal to anastomosis/.test(low);
   det.inflowNear = /near anastomosis|adjacent to anastomosis|<\s*[23]\s*cm/.test(low);
   det.coilEmbo = /coil\s*embo|emboliz|embolization|side.branch\s*embo/.test(low);
@@ -1435,6 +1474,27 @@ function buildFistuloPending(det) {
   if(!det.sedationAnswered && det.sedationMin === 0) {
     pending.push({id:'f_sedation', text:'Moderate sedation time (minutes)? Enter 0 if none.', type:'number',
       resolve:(val)=>{ det.sedationMin=parseInt(val)||0; det.sedationAnswered=true; }});
+  }
+  if(det.centralVesselAmbiguous){
+    pending.push({id:'f_central_vessel',
+      text:'"Subclavian stent" detected — subclavian artery or subclavian vein?',
+      options:[
+        'Subclavian vein (or innominate/SVC) — central dialysis segment stent (+36908)',
+        'Subclavian artery — inflow artery treatment (triggers 36215 + angio question)'
+      ],
+      resolve:(ans)=>{
+        det.centralVesselAmbiguous = false;
+        if(ans.includes('vein') || ans.includes('innominate') || ans.includes('SVC')){
+          det.centralStent = true;
+          // stent flag stays false — peripheral stent base code not applicable
+        } else {
+          // subclavian artery → treat as inflow artery
+          det.inflowMentioned = true;
+          // Subclavian artery stent → flag as inflow stent (37236, not 37246)
+          if(det.stentInText) det.inflowStent = true;
+        }
+      }
+    });
   }
   // If only declot/thrombectomy mentioned with no angioplasty or stent, ask before
   // defaulting to 36904 — most declots involve at least plasty.
@@ -1512,10 +1572,15 @@ function buildFistuloCodes(det, billing) {
     codes.push({code:'36215', desc:'Selective cath, first-order brachiocephalic branch — inflow artery'});
   }
   if(det.inflowFar){
-    // Arterial angioplasty of inflow artery (≥2 cm from anastomosis)
-    codes.push({code: billing==='pro'?'37246-26':'37246', desc:'Transluminal balloon angioplasty, inflow artery (≥2 cm from anastomosis)'+(billing==='pro'?' (pro: -26)':'')});
+    // Arterial stent or angioplasty of inflow artery (≥2 cm from anastomosis)
+    if(det.inflowStent){
+      codes.push({code: billing==='pro'?'37236-26':'37236', desc:'Transcatheter stent, inflow artery (≥2 cm from anastomosis) — separate arterial intervention outside dialysis circuit'+(billing==='pro'?' (pro: -26)':'')});
+      flags.push({type:'flag', text:'Inflow artery stent (37236): this is a separate arterial intervention unrelated to the dialysis circuit — not bundled with the fistulogram family codes.'});
+    } else {
+      codes.push({code: billing==='pro'?'37246-26':'37246', desc:'Transluminal balloon angioplasty, inflow artery (≥2 cm from anastomosis)'+(billing==='pro'?' (pro: -26)':'')});
+    }
     codes.push({code: billing==='pro'?'75710-26-XU':'75710-XU', desc:'Extremity arteriogram, inflow artery — true diagnostic RS&I'+(billing==='pro'?' (pro: -26)':'')});
-    flags.push({type:'flag', text:'Inflow artery angioplasty ≥2 cm from anastomosis: confirm independent diagnostic documentation standard met for 75710-XU.'});
+    flags.push({type:'flag', text:'Inflow artery intervention ≥2 cm from anastomosis: confirm independent diagnostic documentation standard met for 75710-XU.'});
   }
   if(det.dxAngioConfirmed){
     // Diagnostic angio only (no treatment, or treatment already captured above)
