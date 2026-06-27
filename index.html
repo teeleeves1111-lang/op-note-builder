@@ -823,7 +823,7 @@ const TAB1_ABBREV_VESSEL_MAP = [
   [/^at\b/i, 'tibioperoneal', 'Anterior tibial'],
   [/^pt\b/i, 'tibioperoneal', 'Posterior tibial'],
   [/^pero?\b/i, 'tibioperoneal', 'Peroneal'],
-  [/^dp\b/i, 'inframalleolar', 'Dorsalis pedis'],
+  [/^dp[a]?\b/i, 'inframalleolar', 'Dorsalis pedis'],
 ];
 
 function segmentByVessel(text){
@@ -849,8 +849,26 @@ function segmentByVessel(text){
     // that can't safely be matched anywhere in text (risk of false positives
     // on common English words). Fall back to the same leading-abbreviation
     // check Tab 4 uses when the full-text map found nothing.
+    // Detect the side expressed in this clause — used to key bilateral rows
+    // separately so right SFA and left SFA produce two distinct vessel rows.
+    // Single-letter r/l are only recognized when clause-leading (before the
+    // vessel name), not anywhere in the text, to avoid false positives on
+    // words containing those letters.
+    const clauseLow = piece.text.trim().toLowerCase();
+    let clauseSide = null;
+    if(/\bleft\b/.test(clauseLow) && !/\bright\b/.test(clauseLow))      clauseSide = 'left';
+    else if(/\bright\b/.test(clauseLow) && !/\bleft\b/.test(clauseLow)) clauseSide = 'right';
+    else if(/\bbilat(eral)?\b|\bbil\b/.test(clauseLow))                  clauseSide = 'bilateral';
+    else if(/^l\s+/.test(clauseLow) && !/^lt\b/.test(clauseLow))        clauseSide = 'left';
+    else if(/^r\s+/.test(clauseLow) && !/^rt\b/.test(clauseLow))        clauseSide = 'right';
+    else if(/^lt\b/.test(clauseLow))                                     clauseSide = 'left';
+    else if(/^rt\b/.test(clauseLow))                                     clauseSide = 'right';
+
     if(!matches.length){
-      const stripped = piece.text.trim().toLowerCase().replace(/^(left|right|lt|rt)\b\s*/, '');
+      // Strip side prefix before consulting the abbreviation map.
+      // Includes single-letter r/l (e.g. "r cia stent") in addition to
+      // the spelled-out left/right and lt/rt two-letter forms.
+      const stripped = clauseLow.replace(/^(left|right|bilateral|bilat|bil|lt|rt|\br\b|\bl\b)\s+/, '');
       for(const [re, terr, name] of TAB1_ABBREV_VESSEL_MAP){
         if(re.test(stripped)){ matches = [{index:0, territory:terr, vessel:name}]; break; }
       }
@@ -887,15 +905,21 @@ function segmentByVessel(text){
           matches = matches.filter(m=> (m.territory+'|'+m.vessel) === (last.territory+'|'+last.vessel));
         }
       }
+      // "bilateral" in a single clause expands to two rows — one per side.
+      // Any other detected side (or no side) is stored as-is.
+      const sideKeys = clauseSide === 'bilateral' ? ['left','right'] : [clauseSide];
       const seen = new Set();
       matches.forEach(m=>{
-        const key = m.territory+'|'+m.vessel;
-        if(seen.has(key)) return; // avoid double-adding same vessel twice within one clause
-        seen.add(key);
-        if(!byKey[key]){ byKey[key] = {territory:m.territory, vessel:m.vessel, text:''}; order.push(key); }
-        byKey[key].text += ' ' + piece.text;
+        sideKeys.forEach(side=>{
+          // Key includes side so that right SFA and left SFA produce separate rows.
+          const key = m.territory+'|'+m.vessel+(side ? '|'+side : '');
+          if(seen.has(key)) return;
+          seen.add(key);
+          if(!byKey[key]){ byKey[key] = {territory:m.territory, vessel:m.vessel, side:side||null, text:''}; order.push(key); }
+          byKey[key].text += ' ' + piece.text;
+        });
       });
-      lastKey = matches[0].territory+'|'+matches[0].vessel;
+      lastKey = matches[0].territory+'|'+matches[0].vessel+(sideKeys[0] ? '|'+sideKeys[0] : '');
     } else if(lastKey){
       byKey[lastKey].text += ' ' + piece.text;
     }
@@ -1017,7 +1041,7 @@ function parseFullNote(text){
 
   const segments = segmentByVessel(treatmentText);
   const rows = segments.map(s => {
-    const base = Object.assign({territory: s.territory, vessel: s.vessel}, analyzeSegmentText(s.text));
+    const base = Object.assign({territory: s.territory, vessel: s.vessel, side: s.side || null}, analyzeSegmentText(s.text));
     const lowSeg = s.text.toLowerCase();
     // Coding maps a bypass graft intervention to its DISTAL outflow target's
     // territory regardless of where along the graft the balloon/stent
@@ -2070,8 +2094,12 @@ function suggestCodes(){
 
     const modKey = modalityKey(v);
     const complexity = v.lesion;
-    const count = territoryCount[v.territory] || 0;
-    territoryCount[v.territory] = count+1; // count regardless of confirmation, so later confirmed vessels in the same territory still get the right initial/additional slot
+    // Count separately per side so that right iliac stent and left iliac stent
+    // each get the initial-vessel slot (37256-RT, 37256-LT) rather than one
+    // getting initial and the other getting additional.
+    const countKey = v.territory + (v.side ? '|'+v.side : '');
+    const count = territoryCount[countKey] || 0;
+    territoryCount[countKey] = count+1; // count regardless of confirmation
 
     const lookup = lookupTerritoryCode(v.territory, modKey, complexity, count);
     if(lookup.status === 'invalid-modality'){
@@ -2116,7 +2144,11 @@ function suggestCodes(){
     if(v.lithotripsy && billingMode==='facility' && ivlFacilityCode(v.territory, v.stent, v.atherectomy)){
       // base CPT suppressed — C-code above covers it
     } else if(lookup.status === 'ok'){
-      codes.push({code: lookup.code, desc: `${terr.label} — ${modKey} (${complexity==='complex'?'occlusion':'stenosis'}), ${lookup.isAdditional?'additional':'initial'} vessel — ${v.vessel}`});
+      // Append -RT or -LT when this vessel row has a detected side.
+      // Never collapse both sides to -50 (bilateral modifier) — LE
+      // interventional codes use -RT/-LT per CMS laterality policy.
+      const sideTag = v.side === 'right' ? '-RT' : v.side === 'left' ? '-LT' : '';
+      codes.push({code: lookup.code + sideTag, desc: `${terr.label} — ${modKey} (${complexity==='complex'?'occlusion':'stenosis'}), ${lookup.isAdditional?'additional':'initial'} vessel — ${v.vessel}`});
     } else if(lookup.status === 'over-max'){
       flags.push(`${terr.label}: exceeds max billable additional vessels (${terr.maxAdditional}) — review ${v.vessel} before submitting.`);
     }
