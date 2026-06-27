@@ -425,8 +425,13 @@ function setBillingMode(mode) {
   const facBtn = document.getElementById('billingFac');
   if(proBtn){ proBtn.classList.toggle('active', mode==='pro'); }
   if(facBtn){ facBtn.classList.toggle('active', mode==='facility'); }
-  // billingBadge removed — toggle buttons themselves show the active state
-  renderAll(); // re-render codes with updated billing mode
+  if(currentProc === 'le'){
+    renderAll();
+  } else if(otherProcDet && currentProc) {
+    // Re-render venous/fistula/renal codes with new billing mode
+    const result = buildCodesForProc(otherProcDet, currentProc, billingMode);
+    renderOtherCodes(result.codes, result.flags);
+  }
 }
 document.getElementById('billingPro')?.addEventListener('click', ()=>setBillingMode('pro'));
 document.getElementById('billingFac')?.addEventListener('click', ()=>setBillingMode('facility'));
@@ -445,32 +450,38 @@ document.getElementById('ngBillingFac')?.addEventListener('click', ()=>setNgBill
 
 // ---------- Proc type selector ----------
 let currentProc = 'le'; // 'le' | 'fistula' | 'venous' | 'renal'
+const procNoteText = { le: '', fistula: '', venous: '', renal: '' };
+
+function selectProc(chip) {
+  // Save current text before switching
+  procNoteText[currentProc] = document.getElementById('noteInput').value;
+
+  document.querySelectorAll('[data-proc]').forEach(c => c.classList.remove('on'));
+  chip.classList.add('on');
+  currentProc = chip.dataset.proc;
+  const leCard = document.getElementById('leVesselCard');
+  if(leCard) leCard.style.display = currentProc === 'le' ? '' : 'none';
+  // Clear output and pending
+  document.getElementById('codeOut').innerHTML = '';
+  document.getElementById('flagOut').innerHTML = '';
+  document.getElementById('pendingCard').style.display = 'none';
+  document.getElementById('pendingList').innerHTML = '';
+  document.getElementById('parseResult').textContent = '';
+  // Restore text for new tab
+  document.getElementById('noteInput').value = procNoteText[currentProc] || '';
+  document.getElementById('noteInput').placeholder = currentProc === 'le'
+    ? 'Tap here · type, paste, or use your phone\'s mic\ne.g. right SFA stent, popliteal atherectomy, AT angioplasty, 20 min sedation'
+    : currentProc === 'fistula'
+      ? 'Tap here · type, paste, or use your phone\'s mic\ne.g. AVG fistulogram, thrombectomy and angioplasty, IVUS, 25 min sedation, inflow artery treated'
+      : currentProc === 'venous'
+        ? 'Tap here · type, paste, or use your phone\'s mic\ne.g. left iliac vein stent, IVUS, venacavogram, no prior study, 20 min sedation'
+        : 'Tap here · type, paste, or use your phone\'s mic\ne.g. left renal artery stent, no prior study, IVUS, 20 min sedation';
+  if(currentProc === 'le') { vesselRows = []; renderVessels(); }
+}
 
 document.querySelectorAll('[data-proc]').forEach(chip => {
-  chip.addEventListener('click', () => {
-    document.querySelectorAll('[data-proc]').forEach(c => c.classList.remove('on'));
-    chip.classList.add('on');
-    currentProc = chip.dataset.proc;
-    // Show/hide LE vessel card
-    const leCard = document.getElementById('leVesselCard');
-    if(leCard) leCard.style.display = currentProc === 'le' ? '' : 'none';
-    // Clear output and pending
-    document.getElementById('codeOut').innerHTML = '';
-    document.getElementById('flagOut').innerHTML = '';
-    document.getElementById('pendingCard').style.display = 'none';
-    document.getElementById('pendingList').innerHTML = '';
-    document.getElementById('parseResult').textContent = '';
-    // Clear note input
-    document.getElementById('noteInput').value = '';
-    document.getElementById('noteInput').placeholder = currentProc === 'le'
-      ? 'Tap here · type, paste, or use your phone\'s mic\ne.g. right SFA stent, popliteal atherectomy, AT angioplasty, 20 min sedation'
-      : currentProc === 'fistula'
-        ? 'Tap here · type, paste, or use your phone\'s mic\ne.g. AVG fistulogram, thrombectomy and angioplasty, IVUS, 25 min sedation, inflow artery treated'
-        : currentProc === 'venous'
-          ? 'Tap here · type, paste, or use your phone\'s mic\ne.g. left iliac vein stent, IVUS, venacavogram, no prior study, 20 min sedation'
-          : 'Tap here · type, paste, or use your phone\'s mic\ne.g. left renal artery stent, no prior study, IVUS, 20 min sedation';
-    if(currentProc === 'le') { vesselRows = []; renderVessels(); }
-  });
+  chip.addEventListener('click', () => selectProc(chip));
+  chip.addEventListener('touchend', (e) => { e.preventDefault(); selectProc(chip); });
 });
 
 // Simple word-level diff renderer — targetId is the element to render into
@@ -628,7 +639,7 @@ function addVesselRow(prefill){
     id, territory:'femoropopliteal', vessel:'SFA/popliteal', lesion:'straightforward', lesionConfirmed:false,
     angioplasty:false, dcb:false, stent:false, stentType:'self-expanding', stentSize:'',
     atherectomy:false, atherType:'directional', lithotripsy:false, ivlSize:'',
-    balloonSize:'', result:'good angiographic result with no residual stenosis'
+    balloonSize:'', result:'good angiographic result with minimal residual stenosis'
   }, prefill||{}));
   renderVessels();
   renderAll();
@@ -918,7 +929,7 @@ function analyzeSegmentText(t){
   // generate a phantom code for a device that was never actually deployed
   // today.
   const preExistingStentRef = /\bselect(?:ed|ing)?\s+the\s+(?:left\s+|right\s+)?[\w-]+\s+stent\b|\b\d+\s+stents?\s+in\s+place\b|\bknown\s+(?:to\s+have\s+)?(?:a\s+|an\s+)?stent\b|\bpreviously\s+placed\s+stent\b|\bexisting\s+stent\b/i;
-  if(/\bstents?\b|stenting|\bscaffold\b/.test(low) && !preExistingStentRef.test(low)) out.stent=true;
+  if(/\bstents?\b|stented|stenting|recanali[sz]|recanal\b|\bscaffold\b/.test(low) && !preExistingStentRef.test(low)) out.stent=true;
   if(/atherectomy|laser|orbital|rotational|directional/.test(low)) out.atherectomy=true;
   if(/lithotripsy|shockwave|\bivl\b/.test(low)) out.lithotripsy=true;
   if(/drug.coated|\bdcb\b/.test(low)) out.dcb=true;
@@ -1154,51 +1165,56 @@ function buildSedationPendingHTML(idPrefix) {
     <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
       <span style="font-size:11.5px;">or minutes directly</span>
       <input type="number" id="${idPrefix}SedMin" min="0" placeholder="minutes" style="width:90px;">
+      <button type="button" id="${idPrefix}SedMinBtn">Confirm</button>
       <button type="button" onclick="${idPrefix==='otherSed'?'onOtherSedNone':idPrefix==='ngSed'?'onNgSedNone':'onLeSedNone'}()">No sedation</button>
     </div>
   </div>`;
 }
 function attachSedationHandlers(idPrefix, onMinutes, onNone) {
   const timesBtn = document.getElementById(idPrefix + 'SedTimesBtn');
+  const minInput = document.getElementById(idPrefix + 'SedMin');
   if(timesBtn){
     timesBtn.addEventListener('click', ()=>{
       const startVal = document.getElementById(idPrefix + 'SedStart').value;
       const endVal   = document.getElementById(idPrefix + 'SedEnd').value;
-      if(!startVal || !endVal) return;
-      const [sh, sm] = startVal.split(':').map(Number);
-      const [eh, em] = endVal.split(':').map(Number);
-      let diff = (eh*60+em) - (sh*60+sm);
-      if(diff < 0) diff += 24*60;
-      if(diff <= 0 || diff > 600) return;
-      onMinutes(diff);
+      if(startVal && endVal){
+        const [sh, sm] = startVal.split(':').map(Number);
+        const [eh, em] = endVal.split(':').map(Number);
+        let diff = (eh*60+em) - (sh*60+sm);
+        if(diff < 0) diff += 24*60;
+        if(diff > 0 && diff <= 600){ onMinutes(diff); return; }
+      }
+      // Fall back to direct minutes entry if times incomplete or invalid
+      if(minInput && minInput.value.trim() !== ''){
+        const val = parseInt(minInput.value.trim(), 10);
+        if(!isNaN(val) && val >= 0) onMinutes(val);
+      }
     });
   }
-  const minInput = document.getElementById(idPrefix + 'SedMin');
   if(minInput){
     function commitMin(){
       const raw = minInput.value.trim();
-      if(raw === '') return; // empty field — don't commit on blur/Enter
+      if(raw === '') return;
       const val = parseInt(raw, 10);
       if(!isNaN(val) && val >= 0) onMinutes(val);
     }
     minInput.addEventListener('keydown', e=>{ if(e.key==='Enter') commitMin(); });
-    // No blur handler — blur fires before button clicks on mobile (iOS),
-    // causing the card to re-render and swallow the "No sedation" click.
+    // Wire the "Confirm minutes" button if present
+    const confirmBtn = document.getElementById(idPrefix + 'SedMinBtn');
+    if(confirmBtn) confirmBtn.addEventListener('click', commitMin);
   }
-  // No sedation button handled via inline onclick (onOtherSedNone/onNgSedNone/onLeSedNone) — no addEventListener needed
 }
 
 // ---- Shared render for non-LE code output ----
 
 // Global No-Sedation handlers — called via inline onclick, survive DOM re-renders
 function onOtherSedNone(){
-  // Find the pending item and resolve it
-  const sedDiv = document.querySelector('[data-sed-pending]');
-  if(!sedDiv) return;
-  const proc = typeof currentProc !== 'undefined' ? currentProc : null;
-  if(otherProcPending){
-    const sedPendItem = otherProcPending.find(p=>p.id===sedDiv.dataset.sedPending);
-    if(sedPendItem){ sedPendItem.resolve('0'); finalizePendingAndRender(proc); }
+  const sedPendItem = otherProcPending.find(p => /sed/i.test(p.id));
+  if(sedPendItem){
+    // Mark answered on the det object so the question doesn't re-appear
+    if(otherProcDet) otherProcDet.sedationAnswered = true;
+    sedPendItem.resolve('0');
+    finalizePendingAndRender(currentProc);
   }
 }
 function onNgSedNone(){
@@ -1280,20 +1296,17 @@ function renderOtherPending(pending, det, proc) {
 }
 
 function finalizePendingAndRender(proc) {
-  // Remove resolved questions and re-check for remaining ones
-  otherProcPending = otherProcPending.filter(p => {
-    // A question is resolved if its key was answered (det was mutated by resolve())
-    return false; // all answered ones are resolved one at a time — rebuild from scratch
-  });
-  // Re-run pending check on updated det
+  // Wipe pending list and rebuild from scratch based on current det state
+  otherProcPending = [];
   const newPending = buildPendingForProc(otherProcDet, proc);
   otherProcPending = newPending;
+  // Always re-render codes (partial or final)
+  const result = buildCodesForProc(otherProcDet, proc, billingMode);
+  renderOtherCodes(result.codes, result.flags);
   if (newPending.length) {
     renderOtherPending(newPending, otherProcDet, proc);
   } else {
     document.getElementById('pendingCard').style.display = 'none';
-    const result = buildCodesForProc(otherProcDet, proc, billingMode);
-    renderOtherCodes(result.codes, result.flags);
   }
 }
 
@@ -1334,6 +1347,19 @@ function analyzeOtherProc(text, proc) {
   }
 }
 
+// ---- SEDATION UNITS HELPER ----
+// Returns {units} of +99153 to add after 99152.
+// Rule: first 15 min = 99152. Each additional block: count full 15-min blocks,
+// then add 1 more if remainder >= 8 min (midpoint rule).
+// In hospital outpatient pro billing, 99153 is TC-only — physician bills 99152 only.
+function calcSedationUnits(sedMin) {
+  if(sedMin < 15) return 0;
+  const remaining = sedMin - 15;
+  const full = Math.floor(remaining / 15);
+  const leftover = remaining % 15;
+  return leftover >= 8 ? full + 1 : full;
+}
+
 // ---- FISTULOGRAM PARSER ----
 function parseFistuloText(text) {
   const low = text.toLowerCase();
@@ -1342,18 +1368,39 @@ function parseFistuloText(text) {
   det.isAVF = /\bavf\b|\bfistula\b/.test(low) && !det.isAVG;
   if (!det.isAVF && !det.isAVG) det.accessTypeUnknown = true;
   det.thrombectomy = /thrombo?ect|declot|lysis of clot/.test(low);
-  det.angioplasty = /angioplasty|\bpta\b|balloon dilation|balloon angio/.test(low);
+  det.interventionAsked = false;
+  det.centralStent = false;
+  det.angioplasty = /angioplasty|\bplasty\b|\bpta\b|balloon dilation|balloon angio/.test(low);
   det.stent = /\bstent/.test(low) && !/prior stent|existing stent|stent in place|stent noted/.test(low);
   det.ivus = /\bivus\b|intravascular ultrasound/.test(low);
   det.usGuidance = /ultrasound.guided access|us.guided access|76937/.test(low);
   det.sedationMin = 0;
+  det.sedationAnswered = false;
   const sm1 = low.match(/(?:sedation|moderate sedation)[^.]*?(\d+)\s*min/);
   const sm2 = low.match(/(\d+)\s*min(?:utes?)?\s*(?:of\s*)?(?:moderate\s*)?sedation/);
   if (sm1) det.sedationMin = parseInt(sm1[1]);
   else if (sm2) det.sedationMin = parseInt(sm2[1]);
-  det.inflowMentioned = /inflow artery|inflow vessel|arterial inflow/.test(low);
+  // Any mention of an artery being treated (angioplasty/plasty/stent) in the
+  // context of a fistulogram should trigger the inflow distance question —
+  // not just "inflow artery" shorthand. Brachial, radial, ulnar, or any
+  // generic "artery angioplasty" language qualifies.
+  det.inflowMentioned = /inflow artery|inflow vessel|arterial inflow/.test(low)
+    || (/(?:\bartery\b|\barterial\b|\bbrachial\b|\bbrach\b|\bradial\b|\bulnar\b|\baxillary\b)/.test(low)
+        && /angioplasty|\bpta\b|\bplasty\b|balloon|stent/.test(low));
   det.inflowFar = /\d+\s*cm\s*from|far from anastomosis|proximal to anastomosis/.test(low);
-  det.inflowNear = /near anastomosis|adjacent to anastomosis|<\s*3\s*cm/.test(low);
+  det.inflowNear = /near anastomosis|adjacent to anastomosis|<\s*[23]\s*cm/.test(low);
+  det.coilEmbo = /coil\s*embo|emboliz|embolization|side.branch\s*embo/.test(low);
+  // Diagnostic upper extremity angiogram (75710) — separate from inflow treatment.
+  // Triggered by any mention of an angiogram/arteriogram of an arm artery, OR
+  // steal syndrome / inflow obstruction as a distinct clinical indication.
+  // Kept separate from inflowMentioned (treatment question) per clinical design.
+  det.dxAngioMentioned = (
+    /steal syndrome|arterial steal|hand isch|cold hand|painful hand|inflow obstruct|inflow embol/.test(low)
+    || (/\bangio(?:gram|graphy)?\b|\barteriogram\b|\barm angio\b/.test(low)
+        && /\bartery\b|\bbrachial\b|\bbrach\b|\bradial\b|\bulnar\b|\baxillary\b|\bsubclavian\b|\binflow\b|\barm\b/.test(low))
+  );
+  det.dxAngioConfirmed = false; // set by pending answer
+  det.dxAngioAnsweredNo = false; // set explicitly when user answers No
   det.ivusCount = 1;
   if (det.ivus) { const m=low.match(/ivus[^.]*?(\d)\s*vessel|(\d)\s*vessel[^.]*?ivus/); if(m) det.ivusCount=parseInt(m[1]||m[2]); }
   return det;
@@ -1361,14 +1408,41 @@ function parseFistuloText(text) {
 
 function buildFistuloPending(det) {
   const pending = [];
-  if(det.sedationMin === 0) {
+  if(!det.sedationAnswered && det.sedationMin === 0) {
     pending.push({id:'f_sedation', text:'Moderate sedation time (minutes)? Enter 0 if none.', type:'number',
-      resolve:(val)=>{ det.sedationMin=parseInt(val)||0; }});
+      resolve:(val)=>{ det.sedationMin=parseInt(val)||0; det.sedationAnswered=true; }});
+  }
+  // If only declot/thrombectomy mentioned with no angioplasty or stent, ask before
+  // defaulting to 36904 — most declots involve at least plasty.
+  if(det.thrombectomy && !det.angioplasty && !det.stent && !det.interventionAsked) {
+    pending.push({id:'f_thromb_intervention',
+      text:'Thrombectomy only detected — was anything else done to the circuit?',
+      options:[
+        'Angioplasty, peripheral segment (→ 36905)',
+        'Stent, peripheral segment (→ 36906)',
+        'Stent, central segment only (→ 36904 + +36908)',
+        'Stent, both peripheral + central (→ 36906 + +36908)',
+        'Nothing else — thrombectomy only (→ 36904)'
+      ],
+      resolve:(ans)=>{
+        det.interventionAsked = true;
+        if(ans.includes('Angioplasty')) { det.angioplasty = true; }
+        else if(ans.includes('both peripheral + central')) { det.stent = true; det.centralStent = true; }
+        else if(ans.includes('peripheral segment')) { det.stent = true; }
+        else if(ans.includes('central segment only')) { det.centralStent = true; }
+        // "Nothing else" → leave angioplasty/stent false → 36904
+      }});
   }
   if(det.inflowMentioned && !det.inflowFar && !det.inflowNear) {
-    pending.push({id:'f_inflow', text:'Inflow artery: how far from anastomosis?',
-      options:['<2 cm — near, bundled (no extra codes)','≥2 cm — far, separate codes (36215 + 75710)'],
+    pending.push({id:'f_inflow', text:'Arterial treatment detected — how far is the treated artery from the anastomosis?',
+      options:['<2 cm — near, bundled (no extra codes)','≥2 cm — far, separate codes (36215 + angio)'],
       resolve:(ans)=>{ det.inflowNear=ans.includes('near'); det.inflowFar=ans.includes('far'); det.inflowMentioned=false; }});
+  }
+  if(det.dxAngioMentioned && !det.dxAngioConfirmed) {
+    pending.push({id:'f_dxangio',
+      text:'Diagnostic upper extremity angiogram detected — did the study extend well proximal to the anastomosis (subclavian → axillary → brachial → forearm) with a distinct indication (e.g. steal syndrome, inflow obstruction) and formal documented findings of the entire inflow tract?',
+      options:['Yes — full diagnostic study, separate indication','No — imaging limited to anastomosis area, bundled'],
+      resolve:(ans)=>{ det.dxAngioConfirmed = ans.startsWith('Yes'); det.dxAngioAnsweredNo = ans.startsWith('No'); det.dxAngioMentioned = false; }});
   }
   if(det.ivus && det.ivusCount === 1) {
     pending.push({id:'f_ivusCount', text:'IVUS — how many vessels examined?', type:'number',
@@ -1385,13 +1459,21 @@ function buildFistuloCodes(det, billing) {
   if(!det.thrombectomy) {
     if(det.stent) base={code:'36903',desc:'Fistulogram with stent (includes angioplasty if performed)'};
     else if(det.angioplasty) base={code:'36902',desc:'Fistulogram with angioplasty'};
+    else if(det.centralStent) base={code:'36901',desc:'Fistulogram (base for central segment stent add-on)'};
     else base={code:'36901',desc:'Fistulogram, diagnostic'};
   } else {
-    if(det.stent) base={code:'36906',desc:'Fistulogram + thrombectomy + stent'};
+    if(det.stent) base={code:'36906',desc:'Fistulogram + thrombectomy + peripheral stent'};
     else if(det.angioplasty) base={code:'36905',desc:'Fistulogram + thrombectomy + angioplasty'};
-    else base={code:'36904',desc:'Fistulogram + thrombectomy, diagnostic'};
+    else base={code:'36904',desc:'Fistulogram + thrombectomy (no peripheral intervention)'};
   }
   codes.push(base);
+  // Central segment stent — add-on to any base code
+  if(det.centralStent){
+    codes.push({code:'+36908', desc:'Transcatheter stent placement, central dialysis segment (add-on — includes all central angioplasty)'});
+    flags.push({type:'flag', text:'Central segment stent (+36908): confirm stent was placed in subclavian, innominate, or SVC — not cephalic arch (peripheral).'});
+  }
+  if(det.coilEmbo)
+    codes.push({code:'+36909', desc:'Embolization of side branch(es), dialysis circuit (coil embolization for AVF/AVG maturation or flow augmentation)'});
   if(det.ivus) {
     codes.push({code:'37252',desc:'IVUS, initial noncoronary vessel'});
     for(let i=1;i<det.ivusCount;i++) codes.push({code:'+37253',desc:'IVUS, additional vessel'+(billing==='facility'?' ⚠️ APC packaged':'')});
@@ -1399,17 +1481,37 @@ function buildFistuloCodes(det, billing) {
   }
   if(det.usGuidance)
     codes.push({code:billing==='pro'?'76937-26':'76937',desc:'US guidance, vascular access'+(billing==='pro'?' (pro: -26)':'')});
-  if(det.inflowFar) {
-    codes.push({code:'36215',desc:'Selective cath, first-order branch (inflow artery, ≥2 cm from anastomosis)'});
-    codes.push({code:billing==='pro'?'75710-26-XU':'75710-XU',desc:'Extremity arteriogram, inflow artery (true diagnostic)'+(billing==='pro'?' (pro: -26)':'')});
-    flags.push({type:'flag',text:'Inflow ≥2 cm from anastomosis: confirm independent diagnostic documentation standard met.'});
-  } else if(det.inflowNear) {
-    flags.push({type:'flag',text:'Inflow <2 cm from anastomosis: bundled into fistulogram code — no separate arterial codes.'});
+  // Inflow artery treatment (≥2 cm from anastomosis) and/or diagnostic angio —
+  // share a single 36215. Only add 75710 once; modifiers differ by scenario.
+  const needsInflowCath = det.inflowFar || det.dxAngioConfirmed;
+  if(needsInflowCath){
+    codes.push({code:'36215', desc:'Selective cath, first-order brachiocephalic branch — inflow artery'});
+  }
+  if(det.inflowFar){
+    // Arterial angioplasty of inflow artery (≥2 cm from anastomosis)
+    codes.push({code: billing==='pro'?'37246-26':'37246', desc:'Transluminal balloon angioplasty, inflow artery (≥2 cm from anastomosis)'+(billing==='pro'?' (pro: -26)':'')});
+    codes.push({code: billing==='pro'?'75710-26-XU':'75710-XU', desc:'Extremity arteriogram, inflow artery — true diagnostic RS&I'+(billing==='pro'?' (pro: -26)':'')});
+    flags.push({type:'flag', text:'Inflow artery angioplasty ≥2 cm from anastomosis: confirm independent diagnostic documentation standard met for 75710-XU.'});
+  }
+  if(det.dxAngioConfirmed){
+    // Diagnostic angio only (no treatment, or treatment already captured above)
+    if(!det.inflowFar){
+      codes.push({code: billing==='pro'?'75710-26-59':'75710-59', desc:'Upper extremity arteriogram, diagnostic — subclavian/axillary/brachial inflow tract'+(billing==='pro'?' (pro: -26)':'')});
+    }
+    flags.push({type:'flag', text:'75710 for diagnostic UE angiogram: confirm documentation includes (1) distinct clinical indication (steal, inflow obstruction), (2) catheter position stated in proximal inflow artery, (3) formal narrative of subclavian/axillary/brachial/forearm findings, (4) independent decision basis. Required to survive audit.'});
+  } else if(det.dxAngioAnsweredNo){
+    flags.push({type:'flag', text:'Diagnostic upper extremity angiogram: imaging limited to anastomosis area — bundled into fistulogram base code, 75710 not separately billable.'});
+  }
+  if(det.inflowNear){
+    flags.push({type:'flag', text:'Inflow artery <2 cm from anastomosis: bundled into fistulogram code — no separate arterial codes.'});
   }
   if(det.sedationMin >= 10) {
-    codes.push({code:'99152',desc:`Moderate sedation (${det.sedationMin} min)`});
-    const extra=Math.floor((det.sedationMin-15)/8);
-    if(extra>0){ if(billing==='facility') codes.push({code:'+99153',desc:`Moderate sedation, additional ×${extra} (facility)`}); else flags.push({type:'facility',text:`99153 ×${extra}: facility-only — excluded from professional list.`}); }
+    codes.push({code:'99152',desc:`Moderate sedation, same physician, initial 15 min (intraservice time ${det.sedationMin} min)`});
+    const units = calcSedationUnits(det.sedationMin);
+    if(units > 0){
+      if(billing==='facility') codes.push({code:`+99153 x${units}`,desc:`Moderate sedation, each additional 15 min ×${units} (facility TC-only — hospital bills this, not physician)`});
+      else flags.push({type:'facility',text:`+99153 ×${units}: TC-only in hospital outpatient — facility bills this; omit from physician claim.`});
+    }
   }
   return {codes, flags};
 }
@@ -1418,7 +1520,7 @@ function buildFistuloCodes(det, billing) {
 function parseVenousText(text) {
   const low = text.toLowerCase();
   const det = {};
-  det.stent = /iliac vein stent|venous stent|stent(?:ing)? of (?:the )?(?:left|right|bilateral)? ?iliac vein/.test(low)||(/\bstent\b/.test(low)&&/\bvein\b|\bvenous\b|\biliac\b/.test(low));
+  det.stent = /iliac vein stent|venous stent|stent(?:ing)? of (?:the )?(?:left|right|bilateral)? ?iliac vein/.test(low)||(/\bstents?\b/.test(low)&&/\bvein\b|\bvenous\b|\biliac\b/.test(low));
   det.venoplasty = /venoplasty|balloon venoplasty|venous angioplasty|37248/.test(low) && !det.stent;
   det.ivcInsert = /ivc filter|inferior vena cava filter|filter (?:was )?placed|filter insertion/.test(low) && !/retriev|remov/.test(low);
   det.ivcRetrieve = /(?:ivc filter|filter) (?:was )?(?:retriev|remov)|filter retrieval/.test(low);
@@ -1431,6 +1533,10 @@ function parseVenousText(text) {
   det.bilateral = det.bilateralKw||(det.leftSide&&det.rightSide);
   det.lateralityUnknown = !det.bilateral&&!det.leftSide&&!det.rightSide&&(det.stent||det.venoplasty);
   det.venogram = /venogram|venography|venacavogram|cavogram/.test(low);
+  // Venous stent/venoplasty almost always involves a diagnostic venogram —
+  // auto-assume it was performed and flag for confirmation, same as when
+  // venogram is explicitly mentioned.
+  if(!det.venogram && (det.stent || det.venoplasty)) det.venogram = true;
   det.trueDiagnostic = /no prior|prior study unavailable|prior study inadequate|independent diagnostic|true diagnostic/.test(low);
   // If venogram is mentioned alongside an intervention, treat it as a true diagnostic
   // study by default (clinical norm); flag for confirmation.
@@ -1441,6 +1547,7 @@ function parseVenousText(text) {
   else if(det.bilateral) det.venogramType='extremity_bilateral';
   else det.venogramType='extremity_unilateral';
   det.sedationMin=0;
+  det.sedationAnswered=false;
   const sm=low.match(/(\d+)\s*min(?:utes?)?\s*(?:of\s*)?(?:moderate\s*)?sedation|sedation[^.]*?(\d+)\s*min/);
   if(sm) det.sedationMin=parseInt(sm[1]||sm[2]);
   return det;
@@ -1453,8 +1560,8 @@ function buildVenousPending(det) {
       resolve:(ans)=>{det.leftSide=true;det.rightSide=ans==='Bilateral';det.bilateral=ans==='Bilateral';det.lateralityUnknown=false;}});
   // trueDiagnostic auto-set when venogram present — no pending question needed;
   // a flag in the code output prompts the user to confirm XU modifier.
-  if(det.sedationMin===0&&(det.stent||det.venoplasty||det.ivcInsert))
-    pending.push({id:'v_sed',text:'Moderate sedation time (minutes)? Enter 0 if none.',type:'number',resolve:(val)=>{det.sedationMin=parseInt(val)||0;}});
+  if(!det.sedationAnswered && det.sedationMin===0&&(det.stent||det.venoplasty||det.ivcInsert))
+    pending.push({id:'v_sed',text:'Moderate sedation time (minutes)? Enter 0 if none.',type:'number',resolve:(val)=>{det.sedationMin=parseInt(val)||0; det.sedationAnswered=true;}});
   return pending;
 }
 
@@ -1502,9 +1609,12 @@ function buildVenousCodes(det, billing) {
     flags.push({type:'flag',text:'Venogram detected — bundled into intervention. Add XU documentation if true independent diagnostic standard was met.'});
   }
   if(det.sedationMin>=10){
-    codes.push({code:'99152',desc:`Moderate sedation (${det.sedationMin} min)`});
-    const ex=Math.floor((det.sedationMin-15)/8);
-    if(ex>0){if(!pro)codes.push({code:'+99153',desc:`Moderate sedation, additional ×${ex}`});else flags.push({type:'facility',text:`99153 ×${ex}: facility-only.`});}
+    codes.push({code:'99152',desc:`Moderate sedation, same physician, initial 15 min (intraservice time ${det.sedationMin} min)`});
+    const units=calcSedationUnits(det.sedationMin);
+    if(units>0){
+      if(billing==='facility') codes.push({code:`+99153 x${units}`,desc:`Moderate sedation, each additional 15 min ×${units} (facility TC-only — hospital bills this, not physician)`});
+      else flags.push({type:'facility',text:`+99153 ×${units}: TC-only in hospital outpatient — facility bills this; omit from physician claim.`});
+    }
   }
   return {codes, flags};
 }
@@ -1526,6 +1636,7 @@ function parseRenalText(text) {
   // trueDiagnostic set by text keywords; also settable via pending answer
   det.trueDiagnostic = /no prior|prior unavailable|prior inadequate|independent diagnostic/.test(low);
   det.sedationMin = 0;
+  det.sedationAnswered = false;
   const sm = low.match(/(\d+)\s*min(?:utes?)?\s*(?:of\s*)?(?:moderate\s*)?sedation|sedation[^.]*?(\d+)\s*min/);
   if(sm) det.sedationMin = parseInt(sm[1]||sm[2]);
 
@@ -1541,7 +1652,7 @@ function parseRenalText(text) {
     const c = cl.toLowerCase().trim();
     if(!/renal|sma|celiac|ima/.test(c)) return;
     const isL = /\bleft\b/.test(c), isR = /\bright\b/.test(c), isB = /\bbilateral\b/.test(c);
-    const hasS = /\bstent/.test(c) && !/prior stent|stent in place/.test(c);
+    const hasS = /\bstents?\b|stented|stenting|recanali[sz]/.test(c) && !/prior stent|stent in place/.test(c);
     const hasP = /angioplasty|\bpta\b|balloon|plasty/.test(c);
     // Only flag as diagnostic-angio when the word "angio" explicitly appears
     const hasA = /\bangio\b/.test(c) && !hasS && !hasP;
@@ -1592,9 +1703,9 @@ function buildRenalPending(det) {
     pending.push({id:'r_cath', text:'Diagnostic renal angiogram — how far was the catheter advanced on the diagnostic side?',
       options:['Main renal artery only (1st order → 36251/36252)','Into branch vessels (2nd order+ → 36253/36254)'],
       resolve:(ans)=>{ det.cathSelectivity=ans.includes('branch')?'second':'first'; }});
-  if(det.sedationMin===0)
+  if(!det.sedationAnswered && det.sedationMin===0)
     pending.push({id:'r_sed', text:'Moderate sedation time (minutes)? Enter 0 if none.', type:'number',
-      resolve:(val)=>{ det.sedationMin=parseInt(val)||0; }});
+      resolve:(val)=>{ det.sedationMin=parseInt(val)||0; det.sedationAnswered=true; }});
   return pending;
 }
 
@@ -1698,10 +1809,12 @@ function buildRenalCodes(det, billing) {
   }
 
   if(det.sedationMin>=10){
-    codes.push({code:'99152', desc:`Moderate sedation (${det.sedationMin} min)`});
-    const ex=Math.floor((det.sedationMin-15)/8);
-    if(ex>0){ if(!pro) codes.push({code:'+99153', desc:`Moderate sedation, additional ×${ex}`});
-              else flags.push({type:'facility', text:`99153 ×${ex}: facility-only.`}); }
+    codes.push({code:'99152', desc:`Moderate sedation, same physician, initial 15 min (intraservice time ${det.sedationMin} min)`});
+    const units=calcSedationUnits(det.sedationMin);
+    if(units>0){
+      if(billing==='facility') codes.push({code:`+99153 x${units}`, desc:`Moderate sedation, each additional 15 min ×${units} (facility TC-only — hospital bills this, not physician)`});
+      else flags.push({type:'facility', text:`+99153 ×${units}: TC-only in hospital outpatient — facility bills this; omit from physician claim.`});
+    }
   }
   return {codes, flags};
 }
@@ -2052,10 +2165,12 @@ function suggestCodes(){
       flags.push(`Sedation time documented as ${sedMin} min — below the 10-minute minimum to report 99152 at all.`);
     } else {
       codes.push({code:'99152', desc:`Moderate sedation, same physician, initial 15 minutes (intraservice time ${sedMin} min${sedApprox ? ', documented as approximate' : ''})`});
-      let remaining = sedMin - 15, units = 0;
-      while(remaining >= 8){ units++; remaining -= 15; }
-      if(units>0) codes.push({code:`+99153 x${units}`, desc:`Moderate sedation, each additional 15 minutes (${units} unit${units>1?'s':''}). Note: in the hospital outpatient/facility setting, 99153 is typically technical-only — appropriate on the facility side.`});
-      if(sedApprox) flags.push(`Sedation time was documented with approximate language (e.g. "greater than"/"about") near ${sedMin} min, not stated exactly — confirm the actual intraservice time before submitting, since crossing certain thresholds changes whether an additional +99153 unit applies.`);
+      const units = calcSedationUnits(sedMin);
+      if(units > 0){
+        if(billingMode==='facility') codes.push({code:`+99153 x${units}`, desc:`Moderate sedation, each additional 15 min ×${units} (facility TC-only — hospital bills this, not physician)`});
+        else flags.push(`+99153 ×${units}: TC-only in hospital outpatient — facility bills this; omit from physician claim.`);
+      }
+      if(sedApprox) flags.push(`Sedation time documented with approximate language near ${sedMin} min — confirm exact intraservice time before submitting.`);
     }
   }
 
@@ -2232,23 +2347,35 @@ function renderPending(){
       if(!isNaN(val) && val>=0){ caseAnswers.sedationAnswered=true; caseAnswers.sedationMinutes=val; renderAll(); }
     }
     sedMinInput.addEventListener('keydown', e=>{ if(e.key==='Enter') commitSed(); });
-    // No blur — races with "No sedation" button click on iOS
   }
   // sedMinInput confirm button removed — handled by attachSedationHandlers
   const sedTimesBtn = document.getElementById('confirmSedTimesBtn');
   if(sedTimesBtn){
     sedTimesBtn.addEventListener('click', ()=>{
-      const startVal = document.getElementById('sedStartInput').value; // "HH:MM" 24-hour, native picker
+      const startVal = document.getElementById('sedStartInput').value;
       const endVal = document.getElementById('sedEndInput').value;
-      if(!startVal || !endVal) return;
-      const [sh, sm] = startVal.split(':').map(Number);
-      const [eh, em] = endVal.split(':').map(Number);
-      let diff = (eh*60+em) - (sh*60+sm);
-      if(diff < 0) diff += 24*60; // overnight wraparound
-      if(diff <= 0 || diff > 600) return; // ignore nonsensical ranges, leave prompt open
-      caseAnswers.sedationAnswered = true;
-      caseAnswers.sedationMinutes = diff;
-      renderAll();
+      if(startVal && endVal){
+        const [sh, sm] = startVal.split(':').map(Number);
+        const [eh, em] = endVal.split(':').map(Number);
+        let diff = (eh*60+em) - (sh*60+sm);
+        if(diff < 0) diff += 24*60;
+        if(diff > 0 && diff <= 600){
+          caseAnswers.sedationAnswered = true;
+          caseAnswers.sedationMinutes = diff;
+          renderAll();
+          return;
+        }
+      }
+      // Fall back to direct minutes entry if times incomplete or invalid
+      const minEl = document.getElementById('sedMinInput');
+      if(minEl && minEl.value.trim() !== ''){
+        const val = parseInt(minEl.value.trim(), 10);
+        if(!isNaN(val) && val >= 0){
+          caseAnswers.sedationAnswered = true;
+          caseAnswers.sedationMinutes = val;
+          renderAll();
+        }
+      }
     });
   }
 }
@@ -2462,7 +2589,7 @@ function parseShorthandLine(text){
     stent: base.stent || stents.length>0,
     stents,
     tpTrunkFlagged,
-    result: base.result === 'good result' ? 'good angiographic result with no residual stenosis' : base.result
+    result: base.result === 'good result' ? 'good angiographic result with minimal residual stenosis' : base.result
   };
 }
 
@@ -3140,7 +3267,7 @@ function ngBuildInterventionForSide(side){
     g.forEach(s=>{ clauses = clauses.concat(ngModalityClauses({treatment:s, compositeKey:s.compositeKey})); });
     clauses = [...new Set(clauses)];
     const clauseText = clauses.length ? ngCapFirst(clauses.join('; ')) + '.' : '[treatment details — to complete]';
-    const resultText = `Follow-up imaging revealed ${g[g.length-1].result || 'a good result'}.`;
+    const resultText = `Follow-up imaging revealed ${g[g.length-1].result || 'a good angiographic result with minimal residual stenosis'}.`;
     return `${lead} ${clauseText} ${resultText}`;
   });
   return parts.join(' ');
@@ -3336,9 +3463,6 @@ function ngGenerateNoteText(){
   }).filter(Boolean).join(' ');
 
   return [
-    'Post-op Diagnosis',
-    'Same',
-    '',
     'Procedure Performed',
     procedurePerformed,
     '',
@@ -3346,7 +3470,7 @@ function ngGenerateNoteText(){
     'Moderate conscious sedation',
     '',
     'Indications',
-    '[Indications — to complete]',
+    '***',
     '',
     'Procedure Description',
     ngBuildProcedureDescription(),
@@ -3490,13 +3614,12 @@ function ngSuggestCodes(){
       flags.push(`Sedation time documented as ${sedMin} min — below the 10-minute minimum to report 99152 at all.`);
     } else {
       codes.push({code:'99152', desc:`Moderate sedation, same physician, initial 15 minutes (intraservice time ${sedMin} min${sedApprox ? ', documented as approximate' : ''})`});
-      let remaining = sedMin - 15, units = 0;
-      while(remaining >= 8){ units++; remaining -= 15; }
+      const units = calcSedationUnits(sedMin);
       if(units>0){
-        if(ngBillingMode==='facility') codes.push({code:'+99153', desc:`Moderate sedation, additional ×${units} (facility)`});
-        else flags.push(`+99153 x${units} (each additional 15 min of sedation) is facility-only in this hospital-outpatient setting — not included in the professional code list above; verify on the facility side.`);
+        if(ngBillingMode==='facility') codes.push({code:`+99153 x${units}`, desc:`Moderate sedation, each additional 15 min ×${units} (facility TC-only — hospital bills this, not physician)`});
+        else flags.push(`+99153 ×${units}: TC-only in hospital outpatient — facility bills this; omit from physician claim.`);
       }
-      if(sedApprox) flags.push(`Sedation time was documented with approximate language (e.g. "greater than"/"about") near ${sedMin} min, not stated exactly — confirm the actual intraservice time before submitting.`);
+      if(sedApprox) flags.push(`Sedation time documented with approximate language near ${sedMin} min — confirm exact intraservice time before submitting.`);
     }
   }
 
@@ -3660,6 +3783,68 @@ if(PROXY_URL){
   document.getElementById('ngFindingsNormalizeToolbar').style.display='';
   document.getElementById('ngInterventionNormalizeToolbar').style.display='';
 }
+
+// ---------- Tab 4 Findings normalize ----------
+document.getElementById('ngFindingsNormalizeBtn')?.addEventListener('click', async()=>{
+  const raw = document.getElementById('ngFindingsInput').value.trim();
+  if(!raw){ document.getElementById('ngFindingsNormalizeStatus').textContent='Enter some text first.'; return; }
+  if(!PROXY_URL) return;
+  const btn = document.getElementById('ngFindingsNormalizeBtn');
+  const statusEl = document.getElementById('ngFindingsNormalizeStatus');
+  btn.disabled = true; statusEl.textContent = 'Fixing…';
+  document.getElementById('ngFindingsNormalizeResult').style.display='none';
+  try{
+    const res = await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:raw})});
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error||`Error ${res.status}`);
+    window._ngFindingsNormalized = data.normalized;
+    renderWordDiff(raw, data.normalized, 'ngFindingsDiff');
+    document.getElementById('ngFindingsNormalizeResult').style.display='';
+    statusEl.textContent='';
+  }catch(e){ statusEl.textContent='Error: '+e.message; }
+  finally{ btn.disabled=false; }
+});
+document.getElementById('ngFindingsApplyBtn')?.addEventListener('click',()=>{
+  if(window._ngFindingsNormalized){
+    document.getElementById('ngFindingsInput').value = window._ngFindingsNormalized;
+    document.getElementById('ngFindingsNormalizeResult').style.display='none';
+    ngRenderAll();
+  }
+});
+document.getElementById('ngFindingsDismissBtn')?.addEventListener('click',()=>{
+  document.getElementById('ngFindingsNormalizeResult').style.display='none';
+});
+
+// ---------- Tab 4 Intervention normalize ----------
+document.getElementById('ngInterventionNormalizeBtn')?.addEventListener('click', async()=>{
+  const raw = document.getElementById('ngInterventionInput').value.trim();
+  if(!raw){ document.getElementById('ngInterventionNormalizeStatus').textContent='Enter some text first.'; return; }
+  if(!PROXY_URL) return;
+  const btn = document.getElementById('ngInterventionNormalizeBtn');
+  const statusEl = document.getElementById('ngInterventionNormalizeStatus');
+  btn.disabled = true; statusEl.textContent = 'Fixing…';
+  document.getElementById('ngInterventionNormalizeResult').style.display='none';
+  try{
+    const res = await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:raw})});
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error||`Error ${res.status}`);
+    window._ngInterventionNormalized = data.normalized;
+    renderWordDiff(raw, data.normalized, 'ngInterventionDiff');
+    document.getElementById('ngInterventionNormalizeResult').style.display='';
+    statusEl.textContent='';
+  }catch(e){ statusEl.textContent='Error: '+e.message; }
+  finally{ btn.disabled=false; }
+});
+document.getElementById('ngInterventionApplyBtn')?.addEventListener('click',()=>{
+  if(window._ngInterventionNormalized){
+    document.getElementById('ngInterventionInput').value = window._ngInterventionNormalized;
+    document.getElementById('ngInterventionNormalizeResult').style.display='none';
+    ngRenderAll();
+  }
+});
+document.getElementById('ngInterventionDismissBtn')?.addEventListener('click',()=>{
+  document.getElementById('ngInterventionNormalizeResult').style.display='none';
+});
 
 // Copy codes button (Tab 1)
 document.getElementById('copyCodesBtn')?.addEventListener('click',()=>{
