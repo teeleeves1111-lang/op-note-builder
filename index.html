@@ -1825,11 +1825,23 @@ function buildRenalCodes(det, billing) {
   if(det.rightAngio&&!det.rightStent&&!det.rightPta) diagOnly.push('Right renal artery');
   if(det.leftAngio &&!det.leftStent &&!det.leftPta)  diagOnly.push('Left renal artery');
 
-  // Visceral vessels with any intervention (separate vascular family → 36245-59)
-  const visInt=[];
-  if(det.celiacStent||det.celiacPta) visInt.push('Celiac artery');
-  if(det.smaStent   ||det.smaPta)    visInt.push('SMA');
-  if(det.imaStent   ||det.imaPta)    visInt.push('IMA');
+  // Visceral vessels with INTERVENTION (separate vascular family → 36245-59 bundled into stent)
+  // 36245 is bundled into 37236/37237 for stented vessels — suppress for those.
+  // Only emit 36245-59 for visceral vessels with PTA-only (no stent).
+  const visIntStented=[];  // stented visceral — 36245 suppressed (bundled into 37236/37237)
+  const visIntPtaOnly=[];  // PTA-only visceral — 36245-59 separately billable
+  const visDiag=[];        // diagnostic-only visceral — 36245-59 + 75726-59 separately billable
+  if(det.celiacStent)                       visIntStented.push('Celiac artery');
+  else if(det.celiacPta)                    visIntPtaOnly.push('Celiac artery');
+  else if(det.celiac && !det.celiacStent && !det.celiacPta) visDiag.push('Celiac artery');
+  if(det.smaStent)                          visIntStented.push('SMA');
+  else if(det.smaPta)                       visIntPtaOnly.push('SMA');
+  else if(det.sma && !det.smaStent && !det.smaPta)         visDiag.push('SMA');
+  if(det.imaStent)                          visIntStented.push('IMA');
+  else if(det.imaPta)                       visIntPtaOnly.push('IMA');
+  else if(det.ima && !det.imaStent && !det.imaPta)         visDiag.push('IMA');
+  // Combined list for legacy flag text
+  const visInt = [...visIntStented, ...visIntPtaOnly];
 
   if(sv.length){
     // ── Stent ──
@@ -1839,10 +1851,23 @@ function buildRenalCodes(det, billing) {
       desc:`Balloon angioplasty, additional vessel (alongside stent) — ${v}`+(!pro?' ⚠️ APC packaged':'')}); });
     flags.push({type:'prompt', text:`Stent device C-code (C1874/C1887) required on facility claim (×${sv.length}).`});
 
-    visInt.forEach(v=>{ codes.push({code:'36245-59',
+    // 36245-59 for visceral vessels: only PTA-only (stented vessels have cath bundled into 37236/37237)
+    visIntPtaOnly.forEach(v=>{ codes.push({code:'36245-59',
       desc:`Selective catheterization, 1st order — ${v} (separate vascular family; -59/-XS modifier required)`}); });
-    if(visInt.length) flags.push({type:'flag',
-      text:'Celiac/SMA/IMA are separate vascular families from renal — 36245-59 is separately billable for each visceral vessel. Upgrade to 36246/36247 if catheter advanced beyond main trunk.'});
+    if(visIntStented.length) flags.push({type:'flag',
+      text:`Visceral stent (${visIntStented.join(', ')}): selective cath (36245) is bundled into the stent code (37236/37237) — do NOT bill separately.`});
+    if(visIntPtaOnly.length) flags.push({type:'flag',
+      text:'Celiac/SMA/IMA are separate vascular families from renal — 36245-59 is separately billable for PTA-only vessels. Upgrade to 36246/36247 if catheter advanced beyond main trunk.'});
+
+    // Diagnostic-only visceral vessels (angio, no intervention) — 36245-59 + 75726 even when other vessels stented
+    visDiag.forEach(v=>{ codes.push({code:'36245-59',
+      desc:`Selective catheterization, 1st order — ${v} (diagnostic only; separate vascular family; -59/-XS)`}); });
+    if(visDiag.length){
+      codes.push({code:pro?'75726-26-59':'75726-59',
+        desc:`Visceral arteriogram — ${visDiag.join(', ')}, diagnostic only`+(pro?' (pro: -26)':'')});
+      flags.push({type:'flag',
+        text:`Diagnostic visceral angiogram (${visDiag.join(', ')}): separate vascular family — 36245-59 + 75726-59 separately billable even when renal/other vessels were intervened on. Upgrade 36245→36246/36247 if catheter advanced beyond main trunk.`});
+    }
 
     if(diagOnly.length){
       if(det.trueDiagnostic){
@@ -1870,8 +1895,14 @@ function buildRenalCodes(det, billing) {
     // ── PTA only ──
     pv.forEach((v,i)=>{ codes.push({code:i===0?'37246':'+37247',
       desc:`Balloon angioplasty, ${i===0?'initial':'additional'} vessel — ${v}`+(i>0&&!pro?' ⚠️ APC packaged':'')}); });
-    visInt.forEach(v=>{ codes.push({code:'36245-59',
+    visIntPtaOnly.forEach(v=>{ codes.push({code:'36245-59',
       desc:`Selective catheterization, 1st order — ${v} (separate vascular family; -59/-XS)`}); });
+    visDiag.forEach(v=>{ codes.push({code:'36245-59',
+      desc:`Selective catheterization, 1st order — ${v} (diagnostic only; separate vascular family; -59/-XS)`}); });
+    if(visDiag.length){
+      codes.push({code:pro?'75726-26-59':'75726-59',
+        desc:`Visceral arteriogram — ${visDiag.join(', ')}, diagnostic only`+(pro?' (pro: -26)':'')});
+    }
     if(det.diagnosticAngio && det.trueDiagnostic){
       if(det.renal) codes.push({code:det.bilateral?`75724${mod}`:`75722${mod}`,
         desc:`Renal arteriogram${det.bilateral?', bilateral':''} — diagnostic drove intervention`+(pro?' (pro: -26)':'')});
