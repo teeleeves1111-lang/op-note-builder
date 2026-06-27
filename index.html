@@ -1820,9 +1820,9 @@ function parseRenalText(text) {
   det.sma     = /\bsma\b|superior mesenteric/.test(low);
   det.celiac  = /\bceliac\b/.test(low);
   det.ima     = /\bima\b|inferior mesenteric/.test(low);
-  det.bilateralKw = /\bbilateral\b/.test(low);
-  det.leftSide    = /\bleft\b/.test(low);
-  det.rightSide   = /\bright\b/.test(low);
+  det.bilateralKw = /\bbilateral\b|\bbilat\b|\bbil\b/.test(low);
+  det.leftSide    = /\bleft\b|\blt\b|(?:^|[,;\s])l\s+renal|(?:^|[,;\s])l\s+(?:sma|celiac|ima)/.test(low);
+  det.rightSide   = /\bright\b|\brt\b|(?:^|[,;\s])r\s+renal|(?:^|[,;\s])r\s+(?:sma|celiac|ima)/.test(low);
   det.ivus    = /\bivus\b|intravascular ultrasound/.test(low);
   // trueDiagnostic set by text keywords; also settable via pending answer
   det.trueDiagnostic = /no prior|prior unavailable|prior inadequate|independent diagnostic/.test(low);
@@ -1842,7 +1842,11 @@ function parseRenalText(text) {
   text.split(/[,;]+/).forEach(cl=>{
     const c = cl.toLowerCase().trim();
     if(!/renal|sma|celiac|ima/.test(c)) return;
-    const isL = /\bleft\b/.test(c), isR = /\bright\b/.test(c), isB = /\bbilateral\b/.test(c);
+    // Side detection: full words + two-letter (lt/rt) + single-letter leading prefix
+    // Single-letter: only when clause-leading or after delimiter to avoid false positives
+    const isL = /\bleft\b|\blt\b/.test(c) || /^l\s/.test(c);
+    const isR = /\bright\b|\brt\b/.test(c) || /^r\s/.test(c);
+    const isB = /\bbilateral\b|\bbilat\b|\bbil\b/.test(c);
     const hasS = /\bstents?\b|stented|stenting|recanali[sz]/.test(c) && !/prior stent|stent in place/.test(c);
     const hasP = /angioplasty|\bpta\b|balloon|plasty/.test(c);
     // Only flag as diagnostic-angio when the word "angio" explicitly appears
