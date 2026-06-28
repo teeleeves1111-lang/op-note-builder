@@ -268,6 +268,7 @@
         placeholder="Tap here · type, paste, or use your phone's mic&#10;e.g. right SFA stent, popliteal atherectomy, AT angioplasty, 20 min sedation"></textarea>
       <div class="toolbar" id="normalizeToolbar" style="display:none;">
         <button id="normalizeBtn" class="secondary small" type="button">✨ Fix dictation errors (AI)</button>
+        <span id="pastePhiWarning" style="display:none;font-size:11px;color:#b45309;margin-left:8px;">⚠️ AI disabled after paste — edit manually first to confirm no PHI, then it re-enables.</span>
         <span class="hint" id="normalizeStatus"></span>
       </div>
       <div id="normalizeResultCard" class="ai-result-card" style="display:none;">
@@ -1189,6 +1190,39 @@ document.getElementById('analyzeBtn').addEventListener('click', ()=>{
 
 document.getElementById('noteInput').addEventListener('input', renderAll);
 
+// PHI paste guard: disable the AI normalization button whenever text is pasted
+// into the note box — pasting is the only realistic vector for accidental PHI
+// inclusion (full operative notes with demographics). Typed shorthand almost
+// never contains PHI. The button re-enables automatically once the user makes
+// any manual edit after the paste, signalling they've reviewed the content.
+// New Patient also re-enables (text is cleared so there's nothing to transmit).
+(function(){
+  const noteEl  = document.getElementById('noteInput');
+  const normBtn = document.getElementById('normalizeBtn');
+  const warnEl  = document.getElementById('pastePhiWarning');
+  let inputsAfterPaste = 0;
+
+  noteEl.addEventListener('paste', ()=>{
+    // paste fires BEFORE text lands; setTimeout fires AFTER
+    setTimeout(()=>{
+      normBtn.disabled = true;
+      if(warnEl) warnEl.style.display = '';
+      inputsAfterPaste = 0; // reset counter; paste itself will fire one input event
+    }, 0);
+  });
+
+  noteEl.addEventListener('input', ()=>{
+    if(!normBtn.disabled) return; // already enabled, nothing to do
+    inputsAfterPaste++;
+    // inputsAfterPaste === 1 is the paste's own input event — skip it.
+    // inputsAfterPaste >= 2 means user has typed at least one character → re-enable.
+    if(inputsAfterPaste >= 2){
+      normBtn.disabled = false;
+      if(warnEl) warnEl.style.display = 'none';
+    }
+  });
+})();
+
 // Select all existing text on focus (not on every click — only when the box
 // transitions from unfocused to focused) so starting a new patient is just
 // "click, then paste or dictate" instead of manually clearing first. Doesn't
@@ -1199,6 +1233,11 @@ document.getElementById('noteInput').addEventListener('focus', function(){ this.
 document.getElementById('newPatientBtn').addEventListener('click', ()=>{
   const noteInputEl = document.getElementById('noteInput');
   noteInputEl.value = '';
+  // Re-enable AI button and clear PHI warning — text is gone, nothing to transmit
+  const nb = document.getElementById('normalizeBtn');
+  const pw = document.getElementById('pastePhiWarning');
+  if(nb) nb.disabled = false;
+  if(pw) pw.style.display = 'none';
   vesselRows = [];
   caseAnswers = {aortogram: null, aortogramDone: null, legAngioDone: null, sedationAnswered: false, sedationMinutes: 0, usGuidance: null};
   document.getElementById('parseResult').textContent = '';
