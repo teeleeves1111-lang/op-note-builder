@@ -173,6 +173,17 @@
   .code-item.device-placeholder{background:#fffbeb;border-left-color:#d97706;}
   .code-item.device-placeholder .code{color:#b45309;}
   .code-item.device-placeholder .desc{color:#92400e;}
+  /* Expandable rationale */
+  .code-item{cursor:default;flex-wrap:wrap;}
+  .code-item .code-main{display:flex;align-items:flex-start;gap:10px;width:100%;}
+  .code-item .why-btn{margin-left:auto;flex-shrink:0;font-size:10px;color:var(--accent);
+    background:none;border:1px solid var(--accent);border-radius:10px;padding:1px 7px;
+    cursor:pointer;opacity:0.7;line-height:1.6;white-space:nowrap;}
+  .code-item .why-btn:hover{opacity:1;}
+  .code-item .rationale{display:none;width:100%;margin-top:6px;padding:7px 10px;
+    background:rgba(0,0,0,0.04);border-radius:4px;font-size:11.5px;color:var(--ink-soft);
+    line-height:1.5;border-left:2px solid var(--accent);}
+  .code-item .rationale.open{display:block;}
 
   /* ---- Flags / pending ---- */
   .flag-item{
@@ -1355,7 +1366,16 @@ function renderOtherCodes(codes, flags) {
     const isDevice = c.code === 'C????';
     div.className = 'code-item' + (isDevice ? ' device-placeholder' : '');
     const prefix = isDevice ? '⚠️ ' : '';
-    div.innerHTML = `<span class="code">${c.code}</span><span class="desc">${prefix}${c.desc}</span>`;
+    const whyBtn = c.rationale ? `<button class="why-btn" type="button" aria-label="Why this code?">ⓘ Why?</button>` : '';
+    const rationale = c.rationale ? `<div class="rationale">${c.rationale}</div>` : '';
+    div.innerHTML = `<div class="code-main"><span class="code">${c.code}</span><span class="desc">${prefix}${c.desc}</span>${whyBtn}</div>${rationale}`;
+    if(c.rationale){
+      div.querySelector('.why-btn').addEventListener('click', e=>{
+        e.stopPropagation();
+        div.querySelector('.rationale').classList.toggle('open');
+        e.target.textContent = div.querySelector('.rationale').classList.contains('open') ? '✕ Close' : 'ⓘ Why?';
+      });
+    }
     codeEl.appendChild(div);
   });
   flags.forEach(f => {
@@ -1701,6 +1721,16 @@ function buildFistuloCodes(det, billing) {
     else if(det.angioplasty) base={code:'36905',desc:'Fistulogram + thrombectomy + angioplasty'};
     else base={code:'36904',desc:'Fistulogram + thrombectomy (no peripheral intervention)'};
   }
+  // Attach rationale to base code
+  const fistuloBaseRationale = {
+    '36901': `<b>36901</b> — Fistulogram only (diagnostic). No peripheral intervention performed.<br><b>Rule:</b> Use 36901 when the procedure is diagnostic imaging only — no angioplasty, stent, or thrombectomy in the peripheral segment. Central segment add-ons (+36907/+36908) can still attach.`,
+    '36902': `<b>36902</b> — Fistulogram with peripheral angioplasty.<br><b>Rule:</b> Use when balloon angioplasty is performed in the peripheral dialysis segment (graft body, venous anastomosis, or outflow to the axillary vein). Includes all imaging. Stent in the peripheral segment would upgrade to 36903.`,
+    '36903': `<b>36903</b> — Fistulogram with peripheral stent.<br><b>Rule:</b> Use when a stent is placed in the peripheral dialysis segment. This code includes angioplasty when performed — do not also bill 36902. Central stent adds +36908 on top of this base.`,
+    '36904': `<b>36904</b> — Fistulogram with thrombectomy only.<br><b>Rule:</b> Thrombectomy performed with no additional peripheral intervention. If angioplasty or stent also performed, upgrade to 36905 or 36906.`,
+    '36905': `<b>36905</b> — Fistulogram + thrombectomy + peripheral angioplasty.<br><b>Rule:</b> Combination of mechanical thrombectomy and balloon angioplasty in the peripheral segment.`,
+    '36906': `<b>36906</b> — Fistulogram + thrombectomy + peripheral stent.<br><b>Rule:</b> Combination of thrombectomy and stent placement. Highest-value peripheral dialysis base code. Includes all angioplasty when performed.`,
+  }[base.code];
+  if(fistuloBaseRationale) base.rationale = fistuloBaseRationale;
   codes.push(base);
   // Facility stent device placeholder — peripheral stent base codes only
   if(billing==='facility' && det.stent){
@@ -1711,13 +1741,23 @@ function buildFistuloCodes(det, billing) {
   }
   // Central segment stent — add-on to any base code
   if(det.centralStent){
-    codes.push({code:'+36908', desc:'Transcatheter stent placement, central dialysis segment (add-on — includes all central angioplasty)'});
+    codes.push({code:'+36908',
+      desc:'Transcatheter stent placement, central dialysis segment (add-on — includes all central angioplasty)',
+      rationale:`<b>+36908</b> — Central dialysis segment stent add-on.<br>`
+        +`<b>Central segment defined as:</b> Subclavian vein, innominate vein, or SVC only. `
+        +`<b>Bundling rule:</b> This code includes all central angioplasty — do NOT also bill +36907 when +36908 is present. `
+        +`<b>Cephalic arch:</b> Peripheral — stent there is billed under 36903, not +36908.`});
     flags.push({type:'flag', text:'Central segment stent (+36908): confirm stent was placed in subclavian, innominate, or SVC — not cephalic arch (peripheral).'});
   } else if(det.centralPlasty){
     // +36907: central segment angioplasty only (no central stent).
     // +36908 already includes all angioplasty when a central stent was placed,
     // so +36907 is suppressed when centralStent is true.
-    codes.push({code:'+36907', desc:'Transluminal angioplasty, central dialysis segment (add-on) — confirm vessel is subclavian, innominate, or SVC; cephalic arch is peripheral'});
+    codes.push({code:'+36907',
+      desc:'Transluminal angioplasty, central dialysis segment (add-on) — confirm vessel is subclavian, innominate, or SVC; cephalic arch is peripheral',
+      rationale:`<b>+36907</b> — Central dialysis segment angioplasty add-on.<br>`
+        +`<b>Central segment defined as:</b> Subclavian vein, innominate (brachiocephalic) vein, or superior vena cava (SVC). `
+        +`<b>Cephalic arch is peripheral</b> — it is NOT central and does NOT trigger this code. `
+        +`<b>Bundling rule:</b> +36907 is suppressed when +36908 (central stent) is present, because the stent add-on already includes all central angioplasty by CPT definition.`});
     flags.push({type:'flag', text:'+36907 (central plasty): verify the treated segment is subclavian vein, innominate vein, or SVC — NOT cephalic arch (which is peripheral and bundled into 36902/36903).'});
   }
   if(det.coilEmbo)
@@ -1761,10 +1801,18 @@ function buildFistuloCodes(det, billing) {
     flags.push({type:'flag', text:'Inflow artery <2 cm from anastomosis: bundled into fistulogram code — no separate arterial codes.'});
   }
   if(det.sedationMin >= 10) {
-    codes.push({code:'99152',desc:`Moderate sedation, same physician, initial 15 min (intraservice time ${det.sedationMin} min)`});
+    codes.push({code:'99152',
+      desc:`Moderate sedation, same physician, initial 15 min (intraservice time ${det.sedationMin} min)`,
+      rationale:`<b>99152</b> — Moderate sedation, same physician, first 15 minutes.<br>`
+        +`<b>Requirements:</b> (1) Physician personally administers/supervises sedation. (2) Independent trained observer (nurse) present throughout with no other duties. (3) Minimum 10 minutes intraservice time documented. `
+        +`<b>Not billable if:</b> Separate anesthesia team (CRNA/anesthesiologist) provided MAC — that's their bill, not the proceduralist's. `
+        +`<b>Facility note:</b> 99152 IS billable by the physician in a facility setting (has physician work RVUs). +99153 add-on units are suppressed in facility mode (TC-only per CMS PCTC indicator 3).`});
     const units = calcSedationUnits(det.sedationMin);
-    if(units > 0){
+    if(units > 0 && billing !== 'facility'){
+      // +99153 is PCTC indicator 3 (TC-only) — not payable by physician in facility POS 21/22
       codes.push({code:`+99153 x${units}`,desc:`Moderate sedation, each additional 15 min ×${units} (same-physician add-on)`});
+    } else if(units > 0 && billing === 'facility'){
+      flags.push(`+99153 (×${units}) suppressed in facility view — PCTC indicator 3 (TC-only); hospital bills this separately; not payable by physician on CMS-1500 in POS 21/22.`);
     }
   }
   return {codes, flags};
@@ -1825,14 +1873,19 @@ function buildVenousCodes(det, billing) {
   const pro=billing==='pro';
   if(det.stent){
     if(det.bilateral){
-      codes.push({code:'37238',desc:'Venous stent, initial vein (iliac)'});
+      codes.push({code:'37238',desc:'Venous stent, initial vein (iliac)',
+        rationale:`<b>37238</b> — Venous stent, initial vessel (iliac).<br>`
+          +`<b>Rule:</b> First stented vein in the session. Bilateral → each side gets its own 37238 (RT/LT); never use -50. +37239 is the add-on for each additional vein. Includes access, venography, and angioplasty in the same vessel.`});
       codes.push({code:'+37239',desc:'Venous stent, additional vein (contralateral)'+(pro?'':' ⚠️ APC packaged')});
       codes.push({code:'36010',desc:'Catheter placement, IVC — access site 1 (catheter advanced to IVC for stenting/venogram)'});
       codes.push({code:'36010-59',desc:'Catheter placement, IVC — access site 2 (bilateral access; -59/-XS distinguishes separate puncture)'});
       flags.push({type:'flag',text:'Bilateral venous stenting: 37238 + 37239. Never modifier -50. Two 36010 codes for bilateral IVC catheterization (one per access site).'});
     } else {
       const side=det.leftSide?'left':det.rightSide?'right':'';
-      codes.push({code:'37238',desc:`Venous stent${side?', '+side+' iliac':''}`});
+      codes.push({code:'37238',desc:`Venous stent${side?', '+side+' iliac':''}`,
+        rationale:`<b>37238</b> — Venous stent, initial vessel.<br>`
+          +`<b>Rule:</b> First stented vein in the session. For bilateral procedures each side gets its own 37238-RT / 37238-LT; never modifier -50. `
+          +`+37239 (add-on) applies to each additional vein on the contralateral side. Includes venography and angioplasty when performed in the same vessel.`});
       codes.push({code:'36010',desc:'Catheter placement, IVC (catheter advanced to IVC for stenting/venogram)'});
     }
     if(!pro){
@@ -1873,10 +1926,17 @@ function buildVenousCodes(det, billing) {
     flags.push({type:'flag',text:'Venogram detected — bundled into intervention. Add XU documentation if true independent diagnostic standard was met.'});
   }
   if(det.sedationMin>=10){
-    codes.push({code:'99152',desc:`Moderate sedation, same physician, initial 15 min (intraservice time ${det.sedationMin} min)`});
+    codes.push({code:'99152',
+      desc:`Moderate sedation, same physician, initial 15 min (intraservice time ${det.sedationMin} min)`,
+      rationale:`<b>99152</b> — Moderate sedation, same physician, first 15 minutes.<br>`
+        +`<b>Requirements:</b> (1) Physician personally administers/supervises sedation. (2) Independent trained observer (nurse) present throughout with no other duties. (3) Minimum 10 minutes intraservice time documented. `
+        +`<b>Not billable if:</b> Separate anesthesia team (CRNA/anesthesiologist) provided MAC — that's their bill, not the proceduralist's. `
+        +`<b>Facility note:</b> 99152 IS billable by the physician in a facility setting (has physician work RVUs). +99153 add-on units are suppressed in facility mode (TC-only per CMS PCTC indicator 3).`});
     const units=calcSedationUnits(det.sedationMin);
-    if(units>0){
+    if(units>0 && billing!=='facility'){
       codes.push({code:`+99153 x${units}`,desc:`Moderate sedation, each additional 15 min ×${units} (same-physician add-on)`});
+    } else if(units>0 && billing==='facility'){
+      flags.push({type:'flag',text:`+99153 (×${units}) suppressed in facility view — PCTC indicator 3 (TC-only); not payable by physician on CMS-1500 in POS 21/22.`});
     }
   }
   return {codes, flags};
@@ -2149,8 +2209,10 @@ function buildRenalCodes(det, billing) {
   if(det.sedationMin>=10){
     codes.push({code:'99152', desc:`Moderate sedation, same physician, initial 15 min (intraservice time ${det.sedationMin} min)`});
     const units=calcSedationUnits(det.sedationMin);
-    if(units>0){
+    if(units>0 && billing!=='facility'){
       codes.push({code:`+99153 x${units}`, desc:`Moderate sedation, each additional 15 min ×${units} (same-physician add-on)`});
+    } else if(units>0 && billing==='facility'){
+      flags.push(`+99153 (×${units}) suppressed in facility view — PCTC indicator 3 (TC-only); not payable by physician on CMS-1500 in POS 21/22.`);
     }
   }
   return {codes, flags};
@@ -2452,7 +2514,12 @@ function suggestCodes(){
         const cCode = ivlFacilityCode(v.territory, hasStent, hasAther);
         if(cCode){
           // C-code covers entire procedure — suppress CPT base + add-on for this vessel
-          codes.push({code:cCode, desc:ivlFacilityDesc(v.territory, hasStent, hasAther)});
+          codes.push({code:cCode, desc:ivlFacilityDesc(v.territory, hasStent, hasAther),
+            rationale:`<b>${cCode}</b> — Comprehensive IVL facility code for ${terr.label}.<br>`
+              +`<b>Facility rule:</b> Under OPPS, C-codes (C9764–C9775) replace the CPT base + add-on pair for IVL procedures on facility (UB-04) claims. `
+              +`One C-code covers the entire procedure regardless of how many balloon passes were made. `
+              +`<b>Modalities included:</b> IVL${hasStent?' + stent':''}${hasAther?' + atherectomy':''}. `
+              +`<b>Do NOT also bill</b> the CPT base code or +37262/+37279 alongside this C-code.`});
           // Stent device C-code still reported separately (packaged for payment but required for cost reporting)
           if(hasStent) flags.push(`Stent device C-code (C1874/C1876/C1887) still required as separate line item on facility claim alongside ${cCode} for cost reporting — even though payment is packaged into the comprehensive APC.`);
         } else {
@@ -2461,7 +2528,12 @@ function suggestCodes(){
       } else {
         // Professional mode: CPT add-on only
         if(terr.ivl){
-          codes.push({code:'+'+terr.ivl.code, desc:`${terr.label} — intravascular lithotripsy add-on — ${v.vessel} (reportable up to ${terr.ivl.maxPerLeg}x/leg in this territory)`});
+          codes.push({code:'+'+terr.ivl.code,
+            desc:`${terr.label} — intravascular lithotripsy add-on — ${v.vessel} (reportable up to ${terr.ivl.maxPerLeg}x/leg in this territory)`,
+            rationale:`<b>+${terr.ivl.code}</b> — IVL (Shockwave/lithotripsy) add-on for ${terr.label}.<br>`
+              +`<b>Pro mode rule:</b> In the professional fee schedule, IVL is a separate add-on code billed alongside the base procedure code (angioplasty or stent). `
+              +`The base code covers catheterization and balloon/stent work; this add-on captures the lithotripsy component. `
+              +`Reportable up to ${terr.ivl.maxPerLeg}× per leg in this territory per CPT guidelines.`});
         } else {
           flags.push(`${terr.label} has no CPT IVL add-on code — lithotripsy performed in ${v.vessel} is not separately billable here on the pro fee claim, verify.`);
         }
@@ -2483,7 +2555,13 @@ function suggestCodes(){
       // Never collapse both sides to -50 (bilateral modifier) — LE
       // interventional codes use -RT/-LT per CMS laterality policy.
       const sideTag = v.side === 'right' ? '-RT' : v.side === 'left' ? '-LT' : '';
-      codes.push({code: lookup.code + sideTag, desc: `${terr.label} — ${modKey} (${complexity==='complex'?'occlusion':'stenosis'}), ${lookup.isAdditional?'additional':'initial'} vessel — ${v.vessel}`});
+      const leRationale = `<b>${lookup.code}${sideTag}</b> — ${terr.label}, ${modKey} (${complexity==='complex'?'occlusion/CTO':'stenosis'}), ${lookup.isAdditional?'add-on (additional vessel in this territory+side)':'initial vessel (first in this territory+side)'}.<br>`
+        + `<b>Vessel:</b> ${v.vessel}. `
+        + `<b>Territory:</b> ${terr.label}. `
+        + `<b>Complexity:</b> ${complexity==='complex'?'Complex — occlusion/CTO dictated; maps to higher code pair.':'Straightforward — stenosis or documented percent narrowing.'}<br>`
+        + (lookup.isAdditional ? `<b>Add-on rule:</b> A prior vessel in this territory+side already claimed the initial slot. Each additional named vessel in the same territory and side uses the add-on code. ` : `<b>Initial slot rule:</b> First treated vessel in ${terr.label} on this side. `)
+        + `<b>Laterality:</b> ${v.side ? `-${v.side.toUpperCase()} appended per CMS laterality policy (never -50 for bilateral LE interventions).` : 'Side not detected — no laterality modifier added.'}`;
+      codes.push({code: lookup.code + sideTag, desc: `${terr.label} — ${modKey} (${complexity==='complex'?'occlusion':'stenosis'}), ${lookup.isAdditional?'additional':'initial'} vessel — ${v.vessel}`, rationale: leRationale});
     } else if(lookup.status === 'over-max'){
       flags.push(`${terr.label}: exceeds max billable additional vessels (${terr.maxAdditional}) — review ${v.vessel} before submitting.`);
     }
@@ -2513,7 +2591,12 @@ function suggestCodes(){
     usGuidanceResolved = caseAnswers.usGuidance;
   }
   if(usGuidanceResolved === true){
-    codes.push({code: billingMode==='pro'?'76937-26':'76937', desc:'Ultrasound guidance for vascular access — requires documented vessel patency, real-time needle-entry visualization, and a saved permanent image.'+(billingMode==='pro'?' (pro: -26)':'')});
+    codes.push({code: billingMode==='pro'?'76937-26':'76937',
+      desc:'Ultrasound guidance for vascular access — requires documented vessel patency, real-time needle-entry visualization, and a saved permanent image.'+(billingMode==='pro'?' (pro: -26)':''),
+      rationale:`<b>${billingMode==='pro'?'76937-26':'76937'}</b> — Ultrasound guidance for vascular access.<br>`
+        +`<b>Documentation required:</b> (1) Pre-access ultrasound evaluation of potential access sites. (2) Documentation of vessel patency. (3) Real-time ultrasound visualization of needle entry (dynamic technique only — static marking does not qualify). (4) Permanent recorded image stored in chart. `
+        +`${billingMode==='pro'?'<b>-26 modifier:</b> Professional component only (physician interpretation). Facility owns the equipment/technical component.':'<b>No -26 in facility mode:</b> Hospital bills the global service.'} `
+        +`<b>Note:</b> Laterality modifier (-RT/-LT) is NOT applied to 76937 — no authoritative CPT source (SIR, ZHealth, SVS, CMS) requires or recommends it for this code.`});
   } else if(usGuidanceResolved === null && rows.length>0){
     flags.push('⏳ Ultrasound-guided access not mentioned in the note — answer "Ultrasound guidance for access?" above in "Needs your input" to generate this code (or confirm none was used).');
   }
@@ -2550,10 +2633,18 @@ function suggestCodes(){
     if(sedMin < 10){
       flags.push(`Sedation time documented as ${sedMin} min — below the 10-minute minimum to report 99152 at all.`);
     } else {
-      codes.push({code:'99152', desc:`Moderate sedation, same physician, initial 15 minutes (intraservice time ${sedMin} min${sedApprox ? ', documented as approximate' : ''})`});
+      codes.push({code:'99152',
+        desc:`Moderate sedation, same physician, initial 15 minutes (intraservice time ${sedMin} min${sedApprox ? ', documented as approximate' : ''})`,
+        rationale:`<b>99152</b> — Moderate sedation, same physician, first 15 minutes.<br>`
+          +`<b>Requirements:</b> Physician supervises sedation + independent trained observer present. Minimum 10 minutes intraservice time. `
+          +`<b>Not billable</b> when separate anesthesia team (CRNA/anesthesiologist) provides MAC. `
+          +`<b>+99153</b> add-on units are suppressed in facility view (TC-only, PCTC indicator 3).`});
       const units = calcSedationUnits(sedMin);
-      if(units > 0){
+      if(units > 0 && billingMode !== 'facility'){
+        // +99153 PCTC indicator 3 = TC-only; suppress on physician facility claim
         codes.push({code:`+99153 x${units}`, desc:`Moderate sedation, each additional 15 min ×${units} (same-physician add-on)`});
+      } else if(units > 0 && billingMode === 'facility'){
+        flags.push(`+99153 (×${units}) suppressed in facility view — PCTC indicator 3 (TC-only); not payable by physician on CMS-1500 in POS 21/22.`);
       }
       if(sedApprox) flags.push(`Sedation time documented with approximate language near ${sedMin} min — confirm exact intraservice time before submitting.`);
     }
@@ -2585,11 +2676,24 @@ function suggestCodes(){
     // facility = false → strip -26 (hospital bills global; -26 causes clearinghouse rejection)
     const pro26 = billingMode === 'pro';
     if(resolvedAorto.aortogram){
-      codes.push({code: pro26?'75625-26':'75625', desc:'Aortography, abdominal, by catheter, RS&I — confirm the aortogram independently characterized findings (not just confirmatory imaging) before submitting.'+(pro26?' (pro: -26)':'')});
+      codes.push({code: pro26?'75625-26':'75625',
+        desc:'Aortography, abdominal, by catheter, RS&I — confirm the aortogram independently characterized findings (not just confirmatory imaging) before submitting.'+(pro26?' (pro: -26)':''),
+        rationale:`<b>${pro26?'75625-26':'75625'}</b> — Abdominal aortography, radiological supervision &amp; interpretation.<br>`
+          +`<b>When billable:</b> Only when the aortogram independently characterized pathology and drove the clinical decision — not just intraprocedural roadmapping. `
+          +`A prior study available and used for planning suppresses this code. `
+          +`${pro26?'<b>-26 modifier:</b> Professional component only — physician interpretation billed separately from facility technical component.':'<b>No -26 in facility mode:</b> Hospital bills the global service; -26 would cause a clearinghouse rejection.'}`});
     }
     if(resolvedAorto.bilateralXU){
-      codes.push({code: pro26?'75710-26-RT-XU':'75710-RT-XU', desc:'Angiography, right lower extremity, RS&I — angiogram findings drove right-side intervention.'+(pro26?' (pro: -26)':'')});
-      codes.push({code: pro26?'75710-26-LT-XU':'75710-LT-XU', desc:'Angiography, left lower extremity, RS&I — angiogram findings drove left-side intervention.'+(pro26?' (pro: -26)':'')});
+      codes.push({code: pro26?'75710-26-RT-XU':'75710-RT-XU',
+        desc:'Angiography, right lower extremity, RS&I — angiogram findings drove right-side intervention.'+(pro26?' (pro: -26)':''),
+        rationale:`<b>75710-RT-XU</b> — Right lower extremity arteriogram, RS&amp;I.<br>`
+          +`<b>XU modifier:</b> Confirms this was a true independent diagnostic study (findings independently characterized anatomy and drove the treatment decision) — not just intraprocedural roadmapping. `
+          +`<b>Audit requirement:</b> Documentation must describe a complete runoff from the aortoiliac system to the foot with a formal narrative of findings.`});
+      codes.push({code: pro26?'75710-26-LT-XU':'75710-LT-XU',
+        desc:'Angiography, left lower extremity, RS&I — angiogram findings drove left-side intervention.'+(pro26?' (pro: -26)':''),
+        rationale:`<b>75710-LT-XU</b> — Left lower extremity arteriogram, RS&amp;I.<br>`
+          +`<b>XU modifier:</b> Independent diagnostic study that drove intervention on this side. `
+          +`<b>Audit requirement:</b> Formal written findings narrative required; intraprocedural roadmapping alone does not qualify.`});
     } else if(resolvedAorto.bilateral){
       codes.push({code: pro26?'75716-26-XU':'75716-XU', desc:'Angiography, extremity, bilateral, RS&I — confirm the leg angiogram findings independently drove the treatment decision (not just intraprocedural roadmapping) before submitting.'+(pro26?' (pro: -26)':'')});
     } else if(resolvedAorto.unilateralPlusContralateral){
@@ -2774,8 +2878,18 @@ function renderCodes(){
     const isDevice = c.code==='C????';
     const cls = isDevice ? ' device-placeholder' : '';
     const prefix = isDevice ? '⚠️ ' : '';
-    return `<div class="code-item${cls}"><div class="code">${c.code}</div><div class="desc">${prefix}${c.desc}</div></div>`;
+    const whyBtn = c.rationale ? `<button class="why-btn" type="button" aria-label="Why this code?">ⓘ Why?</button>` : '';
+    const rationale = c.rationale ? `<div class="rationale">${c.rationale}</div>` : '';
+    return `<div class="code-item${cls}"><div class="code-main"><div class="code">${c.code}</div><div class="desc">${prefix}${c.desc}</div>${whyBtn}</div>${rationale}</div>`;
   }).join('') : `<div class="hint">No vessels yet.</div>`;
+  // Wire expand/collapse for LE tab dynamically
+  codeOut.querySelectorAll('.why-btn').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      e.stopPropagation();
+      const r = btn.closest('.code-item').querySelector('.rationale');
+      if(r){ r.classList.toggle('open'); btn.textContent = r.classList.contains('open') ? '✕ Close' : 'ⓘ Why?'; }
+    });
+  });
   // Pending (⏳) items already have an interactive prompt in the panel above —
   // skip them here to avoid showing the same blocked item twice.
   flagOut.innerHTML = flags.filter(f=>!f.startsWith('⏳')).map(f=>`<div class="flag-item"><b>Review:</b>&nbsp;${f}</div>`).join('');
@@ -4005,10 +4119,17 @@ function ngSuggestCodes(){
     if(sedMin < 10){
       flags.push(`Sedation time documented as ${sedMin} min — below the 10-minute minimum to report 99152 at all.`);
     } else {
-      codes.push({code:'99152', desc:`Moderate sedation, same physician, initial 15 minutes (intraservice time ${sedMin} min${sedApprox ? ', documented as approximate' : ''})`});
+      codes.push({code:'99152',
+        desc:`Moderate sedation, same physician, initial 15 minutes (intraservice time ${sedMin} min${sedApprox ? ', documented as approximate' : ''})`,
+        rationale:`<b>99152</b> — Moderate sedation, same physician, first 15 minutes.<br>`
+          +`<b>Requirements:</b> Physician supervises sedation + independent trained observer present. Minimum 10 minutes intraservice time. `
+          +`<b>Not billable</b> when separate anesthesia team (CRNA/anesthesiologist) provides MAC. `
+          +`<b>+99153</b> add-on units are suppressed in facility view (TC-only, PCTC indicator 3).`});
       const units = calcSedationUnits(sedMin);
-      if(units>0){
+      if(units>0 && ngBillingMode!=='facility'){
         codes.push({code:`+99153 x${units}`, desc:`Moderate sedation, each additional 15 min ×${units} (same-physician add-on)`});
+      } else if(units>0 && ngBillingMode==='facility'){
+        flags.push(`+99153 (×${units}) suppressed in facility view — PCTC indicator 3 (TC-only); not payable by physician on CMS-1500 in POS 21/22.`);
       }
       if(sedApprox) flags.push(`Sedation time documented with approximate language near ${sedMin} min — confirm exact intraservice time before submitting.`);
     }
@@ -4059,8 +4180,17 @@ function ngRenderCodes(){
     const isDevice = c.code==='C????';
     const cls = isDevice ? ' device-placeholder' : '';
     const prefix = isDevice ? '⚠️ ' : '';
-    return `<div class="code-item${cls}"><div class="code">${c.code}</div><div class="desc">${prefix}${c.desc}</div></div>`;
+    const whyBtn = c.rationale ? `<button class="why-btn" type="button" aria-label="Why this code?">ⓘ Why?</button>` : '';
+    const rationale = c.rationale ? `<div class="rationale">${c.rationale}</div>` : '';
+    return `<div class="code-item${cls}"><div class="code-main"><div class="code">${c.code}</div><div class="desc">${prefix}${c.desc}</div>${whyBtn}</div>${rationale}</div>`;
   }).join('') : `<div class="hint">No codes yet.</div>`;
+  codeOut.querySelectorAll('.why-btn').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      e.stopPropagation();
+      const r = btn.closest('.code-item').querySelector('.rationale');
+      if(r){ r.classList.toggle('open'); btn.textContent = r.classList.contains('open') ? '✕ Close' : 'ⓘ Why?'; }
+    });
+  });
   // ⏳ items already have an interactive prompt in "Needs your input" above —
   // skip them here to avoid showing the same blocked item twice.
   flagOut.innerHTML = flags.filter(f=>!f.startsWith('⏳')).map(f=>`<div class="flag-item"><b>Review:</b>&nbsp;${f}</div>`).join('');
