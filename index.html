@@ -839,17 +839,32 @@ function segmentByVessel(text){
   // Handles: "kissing stents", "kissing iliac stents", "kissing cia stents",
   //          "kissing balloon angioplasty", any combination.
   if(/\bkissing\b/i.test(text)){
-    const hasStent       = /\bstents?\b/i.test(text);
-    const hasAngioplasty = /\bangioplasty\b|\bplasty\b|\bpta\b|\bballoon\b/i.test(text);
-    const hasIVL         = /\bivl\b|\blithotripsy\b/i.test(text);
-    const hasDCB         = /\bdcb\b|\bdrug.?coated\b/i.test(text);
-    const modalityWords  = [
-      hasStent       ? 'stent'       : null,
-      hasAngioplasty ? 'angioplasty' : null,
-      hasIVL         ? 'ivl'         : null,
-      hasDCB         ? 'dcb'         : null,
-    ].filter(Boolean).join(' ') || 'stent'; // default stent if bare "kissing"
-    text = `right common iliac ${modalityWords}, left common iliac ${modalityWords}`;
+    // Replace only the kissing phrase itself, preserving any other clauses
+    // before or after it (e.g. "sfa ivl, kissing iliac stents" must keep "sfa ivl").
+    // Match: optional vessel/territory word(s) + "kissing" + optional modality word(s).
+    text = text.replace(
+      /(?:(?:iliac|cia|femoral|sfa|popliteal|pop)\s+)?kissing\s+(?:(?:iliac|cia|femoral|sfa|popliteal|pop|balloon|angioplasty|plasty|pta|stents?|ivl|lithotripsy|dcb|drug.?coated|occlusion|stenosis|cto)\s+)*(?:balloon\s+)?(?:angioplasty|plasty|pta|stents?|ivl|lithotripsy|dcb|drug.?coated|occlusion|stenosis|cto)?/gi,
+      (match) => {
+        // Detect modalities WITHIN this kissing phrase only
+        const m = match;
+        const hasStent       = /\bstents?\b/i.test(m);
+        const hasAngioplasty = /\bangioplasty\b|\bplasty\b|\bpta\b|\bballoon\b/i.test(m);
+        const hasIVL         = /\bivl\b|\blithotripsy\b/i.test(m);
+        const hasDCB         = /\bdcb\b|\bdrug.?coated\b/i.test(m);
+        // Propagate complexity qualifier to both generated clauses
+        const complexityWord = /\bocclusion\b/i.test(m) ? ' occlusion'
+                             : /\bstenosis\b/i.test(m) ? ' stenosis'
+                             : /\bcto\b|chronic\s+total/i.test(m) ? ' occlusion'
+                             : '';
+        const modalityWords  = [
+          hasStent       ? 'stent'       : null,
+          hasAngioplasty ? 'angioplasty' : null,
+          hasIVL         ? 'ivl'         : null,
+          hasDCB         ? 'dcb'         : null,
+        ].filter(Boolean).join(' ') || 'stent';
+        return `right common iliac ${modalityWords}${complexityWord}, left common iliac ${modalityWords}${complexityWord}`;
+      }
+    );
   }
 
   // Replace modality-joining "and" with "+" before splitting to prevent
