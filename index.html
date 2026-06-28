@@ -2474,7 +2474,7 @@ function suggestCodes(){
     usGuidanceResolved = caseAnswers.usGuidance;
   }
   if(usGuidanceResolved === true){
-    codes.push({code:'76937', desc:'Ultrasound guidance for vascular access — requires documented vessel patency, real-time needle-entry visualization, and a saved permanent image.'});
+    codes.push({code: billingMode==='pro'?'76937-26':'76937', desc:'Ultrasound guidance for vascular access — requires documented vessel patency, real-time needle-entry visualization, and a saved permanent image.'+(billingMode==='pro'?' (pro: -26)':'')});
   } else if(usGuidanceResolved === null && rows.length>0){
     flags.push('⏳ Ultrasound-guided access not mentioned in the note — answer "Ultrasound guidance for access?" above in "Needs your input" to generate this code (or confirm none was used).');
   }
