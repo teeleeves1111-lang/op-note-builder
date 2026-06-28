@@ -2731,7 +2731,19 @@ function suggestCodes(){
       codes.push({code: pro26?`75710-26-${dxSide}`:`75710-${dxSide}`, desc:`Angiography, ${dxSide==='LT'?'left':'right'} lower extremity, RS&I — diagnostic only, no intervention on this side (no XU modifier).`+(pro26?' (pro: -26)':'')});
       flags.push(`Contralateral diagnostic angiogram (${dxSide} leg, no intervention): also bill the appropriate selective catheterization code for the catheter work done on that side — 36245 (catheter to common iliac), 36246 (external iliac / common femoral), or 36247 (SFA/profunda or beyond) — depending on how far the catheter was advanced.`);
     } else if(resolvedAorto.unilateral){
-      codes.push({code: pro26?'75710-26-XU':'75710-XU', desc:'Angiography, extremity, unilateral, RS&I — confirm the leg angiogram findings independently drove the treatment decision (not just intraprocedural roadmapping) before submitting.'+(pro26?' (pro: -26)':'')});
+      // Derive treated side from vessel rows so -RT/-LT can be appended.
+      // Many payers (including Medicare) require laterality on 75710.
+      const txSides = new Set(rows.filter(v=>hasModality(v)&&v.side).map(v=>v.side));
+      const sideToTag = s => s==='right'?'RT':s==='left'?'LT':s.toUpperCase();
+      const txSideTag = txSides.size===1 ? '-'+sideToTag([...txSides][0]) : '';
+      const txSideLabel = txSideTag==='-RT'?'right':txSideTag==='-LT'?'left':'';
+      const codeBase = pro26?`75710-26${txSideTag}-XU`:`75710${txSideTag}-XU`;
+      const sideNote = txSideTag ? `` : ` ⚠️ Side not detected — use RT/LT buttons on vessel cards to add laterality modifier.`;
+      codes.push({code: codeBase,
+        desc:`Angiography${txSideLabel?' — '+txSideLabel:''}, extremity, unilateral, RS&I — confirm the leg angiogram findings independently drove the treatment decision (not just intraprocedural roadmapping) before submitting.`+(pro26?' (pro: -26)':'')+sideNote,
+        rationale:`<b>${codeBase}</b> — ${txSideLabel?txSideLabel.charAt(0).toUpperCase()+txSideLabel.slice(1)+' lower':'Unilateral'} extremity arteriogram, RS&amp;I.<br>`
+          +`<b>XU modifier:</b> Independent diagnostic study that drove the treatment decision — not roadmapping. `
+          +`<b>Laterality:</b> ${txSideTag ? `-${txSideTag.slice(1)} appended from vessel card side selection. Required by Medicare and most commercial payers.` : 'Not detected — set RT/LT on vessel card to add. Missing laterality causes claim denial.'}`});
     }
   } else if(rows.length>0){
     flags.push('⏳ Aortogram/leg angiogram not mentioned in the note — answer above in "Needs your input" to generate this code (or confirm none was done).');
