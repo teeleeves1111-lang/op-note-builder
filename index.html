@@ -2367,7 +2367,13 @@ function suggestCodes(){
     return modRankFor(b) - modRankFor(a); // descending rank within same group
   });
 
-  rows.forEach(v=>{
+  // No cross-vessel suppression: separate named vessels within the same territory
+  // treated with different modalities are each legitimately billable (initial + add-on
+  // hierarchy). modalityKey() already handles single-vessel stent+angioplasty by
+  // returning 'stent' when both are checked — angioplasty is bundled at the card level.
+  const filteredRows = rows;
+
+  filteredRows.forEach(v=>{
     const terr = CODE_TABLE[v.territory];
 
     // A vessel can get mentioned without ever being treated — access site
