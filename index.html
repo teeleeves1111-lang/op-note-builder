@@ -2535,27 +2535,28 @@ function suggestCodes(){
   }
 
   if(resolvedAorto){
+    // pro = true → append -26 (professional RSI component on CMS-1500)
+    // facility = false → strip -26 (hospital bills global; -26 causes clearinghouse rejection)
+    const pro26 = billingMode === 'pro';
     if(resolvedAorto.aortogram){
-      codes.push({code:'75625-26', desc:'Aortography, abdominal, by catheter, RS&I — confirm the aortogram independently characterized findings (not just confirmatory imaging) before submitting.'});
+      codes.push({code: pro26?'75625-26':'75625', desc:'Aortography, abdominal, by catheter, RS&I — confirm the aortogram independently characterized findings (not just confirmatory imaging) before submitting.'+(pro26?' (pro: -26)':'')});
     }
     if(resolvedAorto.bilateralXU){
-      // Both legs had diagnostic angiogram that drove intervention
-      codes.push({code:'75710-26-RT-XU', desc:'Angiography, right lower extremity, RS&I — angiogram findings drove right-side intervention.'});
-      codes.push({code:'75710-26-LT-XU', desc:'Angiography, left lower extremity, RS&I — angiogram findings drove left-side intervention.'});
+      codes.push({code: pro26?'75710-26-RT-XU':'75710-RT-XU', desc:'Angiography, right lower extremity, RS&I — angiogram findings drove right-side intervention.'+(pro26?' (pro: -26)':'')});
+      codes.push({code: pro26?'75710-26-LT-XU':'75710-LT-XU', desc:'Angiography, left lower extremity, RS&I — angiogram findings drove left-side intervention.'+(pro26?' (pro: -26)':'')});
     } else if(resolvedAorto.bilateral){
-      codes.push({code:'75716-26-XU', desc:'Angiography, extremity, bilateral, RS&I — confirm the leg angiogram findings independently drove the treatment decision (not just intraprocedural roadmapping) before submitting.'});
+      codes.push({code: pro26?'75716-26-XU':'75716-XU', desc:'Angiography, extremity, bilateral, RS&I — confirm the leg angiogram findings independently drove the treatment decision (not just intraprocedural roadmapping) before submitting.'+(pro26?' (pro: -26)':'')});
     } else if(resolvedAorto.unilateralPlusContralateral){
-      // Intervention one side (XU), contralateral diagnostic only (no XU) + selective cath code
       const rows = vesselRows;
       const treatedSides = new Set();
       rows.forEach(v=>{ if(hasModality(v) && v.side) treatedSides.add(v.side); });
       const txSide = treatedSides.size===1 ? [...treatedSides][0].toUpperCase() : 'RT';
       const dxSide = txSide === 'RT' ? 'LT' : 'RT';
-      codes.push({code:`75710-26-${txSide}-XU`, desc:`Angiography, ${txSide==='RT'?'right':'left'} lower extremity, RS&I — angiogram findings drove intervention on this side (XU modifier).`});
-      codes.push({code:`75710-26-${dxSide}`, desc:`Angiography, ${dxSide==='LT'?'left':'right'} lower extremity, RS&I — diagnostic only, no intervention on this side (no XU modifier).`});
+      codes.push({code: pro26?`75710-26-${txSide}-XU`:`75710-${txSide}-XU`, desc:`Angiography, ${txSide==='RT'?'right':'left'} lower extremity, RS&I — angiogram findings drove intervention on this side (XU modifier).`+(pro26?' (pro: -26)':'')});
+      codes.push({code: pro26?`75710-26-${dxSide}`:`75710-${dxSide}`, desc:`Angiography, ${dxSide==='LT'?'left':'right'} lower extremity, RS&I — diagnostic only, no intervention on this side (no XU modifier).`+(pro26?' (pro: -26)':'')});
       flags.push(`Contralateral diagnostic angiogram (${dxSide} leg, no intervention): also bill the appropriate selective catheterization code for the catheter work done on that side — 36245 (catheter to common iliac), 36246 (external iliac / common femoral), or 36247 (SFA/profunda or beyond) — depending on how far the catheter was advanced.`);
     } else if(resolvedAorto.unilateral){
-      codes.push({code:'75710-26-XU', desc:'Angiography, extremity, unilateral, RS&I — confirm the leg angiogram findings independently drove the treatment decision (not just intraprocedural roadmapping) before submitting.'});
+      codes.push({code: pro26?'75710-26-XU':'75710-XU', desc:'Angiography, extremity, unilateral, RS&I — confirm the leg angiogram findings independently drove the treatment decision (not just intraprocedural roadmapping) before submitting.'+(pro26?' (pro: -26)':'')});
     }
   } else if(rows.length>0){
     flags.push('⏳ Aortogram/leg angiogram not mentioned in the note — answer above in "Needs your input" to generate this code (or confirm none was done).');
