@@ -170,7 +170,16 @@
   }
   .code-item .code{font-family:var(--mono);font-weight:800;font-size:13px;min-width:80px;color:var(--accent);}
   .code-item .desc{font-size:12px;color:var(--ink-soft);line-height:1.4;}
-  .code-item.device-placeholder{background:#fffbeb;border-left-color:#d97706;}
+  /* Side toggle on vessel card */
+  .vhead{display:flex;align-items:center;gap:6px;}
+  .vtitle{font-weight:700;font-size:13px;flex:1;}
+  .side-btns{display:flex;gap:3px;margin-right:4px;}
+  .side-btn{font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;
+    border:1.5px solid var(--ink-soft);background:none;color:var(--ink-soft);cursor:pointer;line-height:1.5;}
+  .side-btn.active-rt{border-color:#0284c7;background:#e0f2fe;color:#0284c7;}
+  .side-btn.active-lt{border-color:#7c3aed;background:#ede9fe;color:#7c3aed;}
+  .side-btn:hover:not(.active-rt):not(.active-lt){border-color:var(--ink);color:var(--ink);}
+    .code-item.device-placeholder{background:#fffbeb;border-left-color:#d97706;}
   .code-item.device-placeholder .code{color:#b45309;}
   .code-item.device-placeholder .desc{color:#92400e;}
   /* Expandable rationale */
@@ -676,6 +685,10 @@ function renderVessels(){
     block.innerHTML = `
       <div class="vhead">
         <span class="vtitle">Vessel ${idx+1}</span>
+        <div class="side-btns">
+          <button class="side-btn ${v.side==='right'?'active-rt':''}" data-side="right" data-id="${v.id}">RT</button>
+          <button class="side-btn ${v.side==='left'?'active-lt':''}" data-side="left" data-id="${v.id}">LT</button>
+        </div>
         <button class="danger small" data-remove="${v.id}">Remove</button>
       </div>
       <div class="row3" style="grid-template-columns:1fr 1fr;">
@@ -735,6 +748,18 @@ function renderVessels(){
 }
 
 document.getElementById('addVesselBtn').addEventListener('click', ()=>addVesselRow());
+
+// Side toggle: RT / LT buttons on vessel cards
+document.getElementById('vesselList').addEventListener('click', e=>{
+  const btn = e.target.closest('[data-side]');
+  if(!btn) return;
+  const v = vesselRows.find(x=>x.id===btn.dataset.id);
+  if(!v) return;
+  // Clicking active side deselects (clears to null); clicking inactive side selects
+  v.side = v.side === btn.dataset.side ? null : btn.dataset.side;
+  renderVessels();
+  renderAll();
+});
 
 // ---------- Full-note parser ----------
 // Finds vessel mentions in order, merges by vessel name (so repeated mentions
@@ -2560,7 +2585,7 @@ function suggestCodes(){
         + `<b>Territory:</b> ${terr.label}. `
         + `<b>Complexity:</b> ${complexity==='complex'?'Complex — occlusion/CTO dictated; maps to higher code pair.':'Straightforward — stenosis or documented percent narrowing.'}<br>`
         + (lookup.isAdditional ? `<b>Add-on rule:</b> A prior vessel in this territory+side already claimed the initial slot. Each additional named vessel in the same territory and side uses the add-on code. ` : `<b>Initial slot rule:</b> First treated vessel in ${terr.label} on this side. `)
-        + `<b>Laterality:</b> ${v.side ? `-${v.side.toUpperCase()} appended per CMS laterality policy (never -50 for bilateral LE interventions).` : 'Side not detected — no laterality modifier added.'}`;
+        + `<b>Laterality:</b> ${v.side ? `-${v.side.toUpperCase()} appended per CMS laterality policy (never -50 for bilateral LE interventions).` : 'Side not detected — use the RT/LT buttons on the vessel card to assign the correct side, then re-analyze. Without RT/LT, payers may reject the claim.'}`;
       codes.push({code: lookup.code + sideTag, desc: `${terr.label} — ${modKey} (${complexity==='complex'?'occlusion':'stenosis'}), ${lookup.isAdditional?'additional':'initial'} vessel — ${v.vessel}`, rationale: leRationale});
     } else if(lookup.status === 'over-max'){
       flags.push(`${terr.label}: exceeds max billable additional vessels (${terr.maxAdditional}) — review ${v.vessel} before submitting.`);
