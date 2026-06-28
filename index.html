@@ -1414,7 +1414,7 @@ function analyzeOtherProc(text, proc) {
 // Returns {units} of +99153 to add after 99152.
 // Rule: first 15 min = 99152. Each additional block: count full 15-min blocks,
 // then add 1 more if remainder >= 8 min (midpoint rule).
-// In hospital outpatient pro billing, 99153 is TC-only — physician bills 99152 only.
+// +99153 is billed by the physician in pro mode (same-physician sedation add-on).
 function calcSedationUnits(sedMin) {
   if(sedMin < 15) return 0;
   const remaining = sedMin - 15;
@@ -1502,7 +1502,20 @@ function parseFistuloText(text) {
     !/(?:plasty|angioplasty|pta).*(?:plasty|angioplasty|pta)/.test(low); // two plasty tokens = mixed
   if(onlyCentralPlasty) det.angioplasty = false; // suppress peripheral base upgrade
   // Peripheral stent: stent present AND not entirely accounted for by central vessel
-  det.stent = stentInText && !det.centralStent && !det.centralVesselAmbiguous;
+  // Peripheral stent: stent present AND not entirely accounted for by central segment.
+  // When centralStent was set by bare "central stent" keyword (not a named vessel),
+  // check whether there is ALSO a peripheral stent anchor (fistula/avf/avg/main body/
+  // graft/circuit/peripheral keyword, or two stent mentions). If so, both are present.
+  const centralStentFromKeywordOnly = det.centralStent && !centralVesselWithStent; // set only by "central" keyword
+  let peripheralStentAlso = false;
+  if(centralStentFromKeywordOnly && stentInText){
+    // Strip the "central stent" phrase and check if stent still appears in remaining text
+    const withoutCentral = low.replace(/\bcentral\s+stent\b/g,'').replace(/\bstent\b.*\bcentral\b/g,'');
+    peripheralStentAlso = /\bstent/.test(withoutCentral) &&
+      !/prior stent|existing stent|stent in place|stent noted/.test(withoutCentral);
+  }
+  det.stent = (stentInText && !det.centralStent && !det.centralVesselAmbiguous)
+           || peripheralStentAlso;
   det.ivus = /\bivus\b|intravascular ultrasound/.test(low);
   det.usGuidance = /ultrasound.guided access|us.guided access|76937/.test(low);
   det.sedationMin = 0;
@@ -1690,8 +1703,7 @@ function buildFistuloCodes(det, billing) {
     codes.push({code:'99152',desc:`Moderate sedation, same physician, initial 15 min (intraservice time ${det.sedationMin} min)`});
     const units = calcSedationUnits(det.sedationMin);
     if(units > 0){
-      if(billing==='facility') codes.push({code:`+99153 x${units}`,desc:`Moderate sedation, each additional 15 min ×${units} (facility TC-only — hospital bills this, not physician)`});
-      else flags.push({type:'facility',text:`+99153 ×${units}: TC-only in hospital outpatient — facility bills this; omit from physician claim.`});
+      codes.push({code:`+99153 x${units}`,desc:`Moderate sedation, each additional 15 min ×${units} (same-physician add-on)`});
     }
   }
   return {codes, flags};
@@ -1803,8 +1815,7 @@ function buildVenousCodes(det, billing) {
     codes.push({code:'99152',desc:`Moderate sedation, same physician, initial 15 min (intraservice time ${det.sedationMin} min)`});
     const units=calcSedationUnits(det.sedationMin);
     if(units>0){
-      if(billing==='facility') codes.push({code:`+99153 x${units}`,desc:`Moderate sedation, each additional 15 min ×${units} (facility TC-only — hospital bills this, not physician)`});
-      else flags.push({type:'facility',text:`+99153 ×${units}: TC-only in hospital outpatient — facility bills this; omit from physician claim.`});
+      codes.push({code:`+99153 x${units}`,desc:`Moderate sedation, each additional 15 min ×${units} (same-physician add-on)`});
     }
   }
   return {codes, flags};
@@ -1860,9 +1871,34 @@ function parseRenalText(text) {
       if(hasP){ if(isL||isB) det.leftPta=true;    if(isR||isB) det.rightPta=true;   }
       if(hasA){ if(isL||isB) det.leftAngio=true;  if(isR||isB) det.rightAngio=true; }
     }
-    if(isCeliac){ if(hasS) det.celiacStent=true; if(hasP) det.celiacPta=true; }
-    if(isSma)   { if(hasS) det.smaStent=true;    if(hasP) det.smaPta=true;    }
-    if(isIma)   { if(hasS) det.imaStent=true;    if(hasP) det.imaPta=true;    }
+    // For visceral vessels, require stent/PTA keyword to be immediately adjacent
+    // to the vessel name (within ~25 chars) to prevent cross-contamination when
+    // multiple vessels share one unpunctuated clause:
+    // e.g. "left renal stent celiac angioplasty" — "stent" is 7 chars before "celiac"
+    // so it could falsely set celiacStent. We resolve ambiguity by:
+    // (a) requiring the modality word to appear AFTER the vessel name (post-match),
+    //     OR be within 8 chars before it (close enough to be that vessel's own modality).
+    // (b) if both stent and PTA appear near the vessel, PTA wins (explicit angioplasty
+    //     on a vessel means it wasn't stented in that clause).
+    const celiacStentNear = isCeliac && /celiac.{0,25}stent|stent.{0,8}celiac/i.test(c);
+    const celiacPtaNear   = isCeliac && /celiac.{0,25}(?:angioplasty|pta|plasty|balloon)|(?:angioplasty|pta|plasty|balloon).{0,8}celiac/i.test(c);
+    const smaNear         = isSma    && /(?:sma|superior mesenteric).{0,25}(?:stent|angioplasty|pta|plasty|balloon)|(?:stent|angioplasty|pta|plasty|balloon).{0,8}(?:sma|superior mesenteric)/i.test(c);
+    const smaPtaNear      = isSma    && /(?:sma|superior mesenteric).{0,25}(?:angioplasty|pta|plasty|balloon)|(?:angioplasty|pta|plasty|balloon).{0,8}(?:sma|superior mesenteric)/i.test(c);
+    const imaNear         = isIma    && /(?:ima|inferior mesenteric).{0,25}(?:stent|angioplasty|pta|plasty|balloon)|(?:stent|angioplasty|pta|plasty|balloon).{0,8}(?:ima|inferior mesenteric)/i.test(c);
+    const imaPtaNear      = isIma    && /(?:ima|inferior mesenteric).{0,25}(?:angioplasty|pta|plasty|balloon)|(?:angioplasty|pta|plasty|balloon).{0,8}(?:ima|inferior mesenteric)/i.test(c);
+    if(isCeliac){
+      // PTA near celiac overrides stent-near-celiac (explicit PTA = no stent on that vessel)
+      if(celiacPtaNear)      { det.celiacPta=true; }
+      else if(celiacStentNear){ det.celiacStent=true; }
+    }
+    if(isSma){
+      if(smaPtaNear)     { det.smaPta=true; }
+      else if(smaNear)   { det.smaStent=true; }
+    }
+    if(isIma){
+      if(imaPtaNear)     { det.imaPta=true; }
+      else if(imaNear)   { det.imaStent=true; }
+    }
   });
 
   det.bilateralStent = det.leftStent && det.rightStent;
@@ -1991,8 +2027,9 @@ function buildRenalCodes(det, billing) {
     if(diagOnly.length){
       if(det.trueDiagnostic){
         const isBil=diagOnly.length>1, isSec=det.cathSelectivity==='second';
-        const cc=(isBil?(isSec?'36254':'36252'):(isSec?'36253':'36251'))+'-59';
-        codes.push({code:cc, desc:`Selective renal cath, ${isSec?'2nd order':'1st order'}${isBil?', bilateral':''} — ${diagOnly.join(' + ')} diagnostic only. BUNDLED — includes cath + angiography, do NOT also bill 75722/75724. Add -59/-XS.`});
+        const ccBase=(isBil?(isSec?'36254':'36252'):(isSec?'36253':'36251'));
+        const cc=ccBase+(pro?'-26-59':'-59'); // pro: -26 for RSI component; -59 for separate vascular family
+        codes.push({code:cc, desc:`Selective renal cath, ${isSec?'2nd order':'1st order'}${isBil?', bilateral':''} — ${diagOnly.join(' + ')} diagnostic only. BUNDLED — includes cath + angiography, do NOT also bill 75722/75724. Add -59/-XS.`+(pro?' (pro: -26 for RSI component)':'')});
         flags.push({type:'flag', text:'36251-36254 are fully BUNDLED codes — no separate 75722/75724 on the diagnostic-only side.'});
       } else {
         flags.push({type:'flag', text:`⏳ Diagnostic angiogram of ${diagOnly.join(' + ')} — answer "Was this a true independent diagnostic?" above to generate the 36251/36252 code. If not independent, no separate cath/angio code applies.`});
@@ -2034,8 +2071,9 @@ function buildRenalCodes(det, billing) {
     if(det.trueDiagnostic){
       if(det.renal){
         const isBil=det.bilateral, isSec=det.cathSelectivity==='second';
-        codes.push({code:isBil?(isSec?'36254':'36252'):(isSec?'36253':'36251'),
-          desc:`Selective renal artery catheterization, ${isSec?'2nd order or higher':'1st order'}${isBil?', bilateral':''} — BUNDLED: includes catheterization + angiography. Do NOT also bill 75722/75724.`});
+        const dxCode=(isBil?(isSec?'36254':'36252'):(isSec?'36253':'36251'))+(pro?'-26':'');
+        codes.push({code:dxCode,
+          desc:`Selective renal artery catheterization, ${isSec?'2nd order or higher':'1st order'}${isBil?', bilateral':''} — BUNDLED: includes catheterization + angiography. Do NOT also bill 75722/75724.`+(pro?' (pro: -26 for RSI component)':'')});
         flags.push({type:'flag', text:'36251-36254 are BUNDLED — include catheterization + angiographic S&I. Do NOT also bill 75722/75724. If intervention performed, switch to 37236/37246 component coding.'});
       } else {
         codes.push({code:'36245', desc:'Selective catheterization, 1st order abdominal branch (celiac/SMA/IMA)'});
@@ -2051,8 +2089,7 @@ function buildRenalCodes(det, billing) {
     codes.push({code:'99152', desc:`Moderate sedation, same physician, initial 15 min (intraservice time ${det.sedationMin} min)`});
     const units=calcSedationUnits(det.sedationMin);
     if(units>0){
-      if(billing==='facility') codes.push({code:`+99153 x${units}`, desc:`Moderate sedation, each additional 15 min ×${units} (facility TC-only — hospital bills this, not physician)`});
-      else flags.push({type:'facility', text:`+99153 ×${units}: TC-only in hospital outpatient — facility bills this; omit from physician claim.`});
+      codes.push({code:`+99153 x${units}`, desc:`Moderate sedation, each additional 15 min ×${units} (same-physician add-on)`});
     }
   }
   return {codes, flags};
@@ -2449,8 +2486,7 @@ function suggestCodes(){
       codes.push({code:'99152', desc:`Moderate sedation, same physician, initial 15 minutes (intraservice time ${sedMin} min${sedApprox ? ', documented as approximate' : ''})`});
       const units = calcSedationUnits(sedMin);
       if(units > 0){
-        if(billingMode==='facility') codes.push({code:`+99153 x${units}`, desc:`Moderate sedation, each additional 15 min ×${units} (facility TC-only — hospital bills this, not physician)`});
-        else flags.push(`+99153 ×${units}: TC-only in hospital outpatient — facility bills this; omit from physician claim.`);
+        codes.push({code:`+99153 x${units}`, desc:`Moderate sedation, each additional 15 min ×${units} (same-physician add-on)`});
       }
       if(sedApprox) flags.push(`Sedation time documented with approximate language near ${sedMin} min — confirm exact intraservice time before submitting.`);
     }
@@ -3901,8 +3937,7 @@ function ngSuggestCodes(){
       codes.push({code:'99152', desc:`Moderate sedation, same physician, initial 15 minutes (intraservice time ${sedMin} min${sedApprox ? ', documented as approximate' : ''})`});
       const units = calcSedationUnits(sedMin);
       if(units>0){
-        if(ngBillingMode==='facility') codes.push({code:`+99153 x${units}`, desc:`Moderate sedation, each additional 15 min ×${units} (facility TC-only — hospital bills this, not physician)`});
-        else flags.push(`+99153 ×${units}: TC-only in hospital outpatient — facility bills this; omit from physician claim.`);
+        codes.push({code:`+99153 x${units}`, desc:`Moderate sedation, each additional 15 min ×${units} (same-physician add-on)`});
       }
       if(sedApprox) flags.push(`Sedation time documented with approximate language near ${sedMin} min — confirm exact intraservice time before submitting.`);
     }
