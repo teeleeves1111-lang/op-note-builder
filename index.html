@@ -1018,6 +1018,7 @@ function analyzeSegmentText(t){
   if(/atherectomy|laser|orbital|rotational|directional|\bather\b|\batherect\b|\bphoenix\b|\brotoblator\b|\brotablator\b/.test(low)
      || /\bat\b(?!\s*(?:angioplasty|plasty|pta|stent|balloon|ivl|dcb))/i.test(low)) out.atherectomy=true;
   if(/lithotripsy|shockwave|\bivl\b/.test(low)) out.lithotripsy=true;
+  if(/\bdcb\b|drug.?coated\s+balloon|drug.?eluting\s+balloon|\bdeb\b/.test(low)) out.dcb=true;
   if(/\bthrombectomy\b|\baspiration\b|\bsuction\b|\bangiojet\b|\bmechanical thrombo/i.test(low)) out.thrombectomy=true;
   // A stent's code already includes angioplasty for that vessel — don't
   // auto-check both. Atherectomy is different: atherectomy + angioplasty
