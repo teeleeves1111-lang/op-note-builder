@@ -852,6 +852,12 @@ function segmentByVessel(text){
     text = `right common iliac ${modalityWords}, left common iliac ${modalityWords}`;
   }
 
+  // Replace modality-joining "and" with "+" before splitting to prevent
+  // "left CIA IVL and stent" from being split into two separate clauses.
+  // Only "and" that connects two modality terms (not vessel/side terms) is collapsed.
+  const MODALITY_KW = /^(stent|angioplasty|plasty|pta|atherectomy|at(?:herectomy)?|ivl|lithotripsy|dcb|drug.?coated|balloon|thrombectomy|declot|coil|embo)$/i;
+  text = text.replace(/\b(stent|angioplasty|plasty|pta|atherectomy|ivl|lithotripsy|dcb|balloon|thrombectomy|declot|coil|embolization)\s+and\s+(stent|angioplasty|plasty|pta|atherectomy|ivl|lithotripsy|dcb|balloon|thrombectomy|declot|coil|embolization)\b/gi,
+    (m, a, b) => `${a} ${b}`); // collapse: "IVL and stent" → "IVL stent"
   const rawPieces = text.split(/[,.;]\s+|\s+and\s+/i);
   let cursor = 0;
   const clauses = [];
@@ -2973,7 +2979,10 @@ function isBareVesselClause(text){
 // A clause naming two vessels with bridging language ("into", "extending",
 // "continuing") is tagged as one bridge group instead of being split.
 function segmentNotegenText(text){
-  const rawPieces = (text||'').split(/[,.;]\s+|\s+and\s+/i);
+  // Same modality-joining "and" collapse as segmentByVessel
+  text = (text||'').replace(/\b(stent|angioplasty|plasty|pta|atherectomy|ivl|lithotripsy|dcb|balloon|thrombectomy|declot|coil|embolization)\s+and\s+(stent|angioplasty|plasty|pta|atherectomy|ivl|lithotripsy|dcb|balloon|thrombectomy|declot|coil|embolization)\b/gi,
+    (m, a, b) => `${a} ${b}`);
+  const rawPieces = text.split(/[,.;]\s+|\s+and\s+/i);
   let cursor = 0;
   const clauses = [];
   rawPieces.forEach(raw=>{
