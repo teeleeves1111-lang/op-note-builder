@@ -2563,9 +2563,10 @@ function suggestCodes(){
       } else {
         // Professional mode: CPT add-on only
         if(terr.ivl){
-          codes.push({code:'+'+terr.ivl.code,
+          const ivlSideTag = v.side === 'right' ? '-RT' : v.side === 'left' ? '-LT' : '';
+          codes.push({code:'+'+terr.ivl.code+ivlSideTag,
             desc:`${terr.label} — intravascular lithotripsy add-on — ${v.vessel} (reportable up to ${terr.ivl.maxPerLeg}x/leg in this territory)`,
-            rationale:`<b>+${terr.ivl.code}</b> — IVL (Shockwave/lithotripsy) add-on for ${terr.label}.<br>`
+            rationale:`<b>+${terr.ivl.code}${ivlSideTag}</b> — IVL (Shockwave/lithotripsy) add-on for ${terr.label}.<br>`
               +`<b>Pro mode rule:</b> In the professional fee schedule, IVL is a separate add-on code billed alongside the base procedure code (angioplasty or stent). `
               +`The base code covers catheterization and balloon/stent work; this add-on captures the lithotripsy component. `
               +`Reportable up to ${terr.ivl.maxPerLeg}× per leg in this territory per CPT guidelines.`});
