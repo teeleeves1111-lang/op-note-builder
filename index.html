@@ -710,6 +710,16 @@ function renderVessels(){
       ${v.tpTrunkFlag ? `<div class="hint" style="color:var(--flag);">Detected "tibioperoneal trunk" — not separately billable. Confirm above whether this is Posterior tibial or Peroneal, and use the bridging checkbox if it's continuous with an adjacent vessel.</div>` : ''}
       ${v.bypassGraftFlag ? `<div class="hint" style="color:var(--flag);">Detected a bypass graft — coded to the graft's distal outflow target territory regardless of where along the graft (proximal anastomosis, graft body, or distal anastomosis) the intervention occurred. Confirm Territory/Vessel above reflect the graft's named outflow target, and that this isn't actually a separate native-vessel lesion proximal to the graft's own origin (that would be a genuinely separate, separately billable territory).</div>` : ''}
       ${!hasModality(v) ? `<div class="hint" style="color:var(--pending-ink); background:var(--pending-soft); padding:6px 9px; border-radius:3px; margin-top:6px;">⚠ No treatment box checked below — this vessel was mentioned (access site, wire path, or findings only) but won't generate a code. Check a box below if it actually WAS treated.</div>` : ''}
+      ${(()=>{
+        const sc = v.lesionConfirmed && v.lesion==='straightforward';
+        const cc = v.lesionConfirmed && v.lesion==='complex';
+        return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
+        <span style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-soft);">Lesion</span>
+        <button data-lesion-btn="${v.id}" data-value="straightforward" style="font-size:12px;padding:3px 10px;border-radius:4px;cursor:pointer;border:1px solid ${sc?'#2b7a2b':'var(--border)'};background:${sc?'#e8f5e8':'transparent'};color:${sc?'#1a5c1a':'var(--ink-soft)'};font-weight:${sc?'700':'400'};">Stenosis</button>
+        <button data-lesion-btn="${v.id}" data-value="complex" style="font-size:12px;padding:3px 10px;border-radius:4px;cursor:pointer;border:1px solid ${cc?'#c0392b':'var(--border)'};background:${cc?'#fdecea':'transparent'};color:${cc?'#8b1a1a':'var(--ink-soft)'};font-weight:${cc?'700':'400'};">Occlusion / CTO</button>
+        ${!v.lesionConfirmed?'<span style="font-size:11px;color:var(--pending-ink);">&#8987; confirm before coding</span>':''}
+      </div>`;
+      })()}
       <label>Treatment</label>
       <div class="modgrid">
         <label class="inline"><input type="checkbox" data-field="angioplasty" data-id="${v.id}" ${v.angioplasty?'checked':''}> Plain balloon angioplasty</label>
@@ -724,6 +734,17 @@ function renderVessels(){
   });
 
   wrap.querySelectorAll('[data-remove]').forEach(b=>b.addEventListener('click', ()=>removeVesselRow(b.dataset.remove)));
+  // Lesion buttons on vessel cards — persist stenosis/occlusion selection visibly
+  wrap.querySelectorAll('[data-lesion-btn]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const v = vesselRows.find(x=>x.id===b.dataset.lesionBtn);
+      if(!v) return;
+      v.lesion = b.dataset.value;
+      v.lesionConfirmed = true;
+      renderVessels();
+      renderAll();
+    });
+  });
   wrap.querySelectorAll('[data-size-chip]').forEach(chip=>{
     chip.addEventListener('click', ()=>{
       const v = vesselRows.find(x=>x.id===chip.dataset.sizeChip);
