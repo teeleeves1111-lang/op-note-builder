@@ -159,8 +159,7 @@
   .note-output{
     white-space:pre-wrap;font-family:var(--mono);font-size:12px;line-height:1.6;
     background:#FAFAF7;border:1px solid var(--line);padding:14px;border-radius:4px;
-    min-height:220px;height:520px;overflow-y:auto;resize:vertical;
-    width:100%;box-sizing:border-box;
+    max-height:520px;overflow-y:auto;
   }
 
   /* ---- Code list ---- */
@@ -335,23 +334,39 @@
   <div class="panel" id="panel-notegen">
 
     <div class="card">
-      <h2><span class="n">1</span>Dictate the case <span style="font-weight:400;color:var(--ink-soft);font-size:11px;">— findings, interventions, sedation, all in one go · anything not mentioned defaults to patent</span></h2>
-      <textarea id="ngDictationInput" rows="5"
-        placeholder="e.g. right SFA occluded stented 6x150mm Viabahn, popliteal 70% angioplasty 5mm balloon, left CIA 80% stented 8x40mm, rest patent, ultrasound guidance, 35 min sedation"></textarea>
-      <div class="toolbar" id="ngDictationNormalizeToolbar" style="display:none;">
-        <button id="ngDictationNormalizeBtn" type="button" class="secondary small">✨ Fix dictation errors (AI)</button>
-        <span class="hint" id="ngDictationNormalizeStatus"></span>
+      <h2><span class="n">1</span>Angiographic findings <span style="font-weight:400;color:var(--ink-soft);font-size:11px;">— anything not mentioned defaults to patent</span></h2>
+      <textarea id="ngFindingsInput" rows="4"
+        placeholder="e.g. right SFA 70% stenosis, popliteal occluded, peroneal 50% stenosis, rest patent"></textarea>
+      <div class="toolbar" id="ngFindingsNormalizeToolbar" style="display:none;">
+        <button id="ngFindingsNormalizeBtn" type="button" class="secondary small">✨ Fix dictation errors (AI)</button>
+        <span class="hint" id="ngFindingsNormalizeStatus"></span>
       </div>
-      <div id="ngDictationNormalizeResult" class="ai-result-card" style="display:none;">
+      <div id="ngFindingsNormalizeResult" class="ai-result-card" style="display:none;">
         <div class="ai-label">AI corrections — <span style="font-weight:500;text-transform:none;">edit if needed</span></div>
-        <div class="diff-wrap" id="ngDictationDiff"></div>
-        <button id="ngDictationApplyBtn" type="button" class="secondary small">Apply &amp; re-parse</button>
-        <button id="ngDictationDismissBtn" type="button" class="secondary small" style="margin-left:6px;">Dismiss</button>
+        <div class="diff-wrap" id="ngFindingsDiff"></div>
+        <button id="ngFindingsApplyBtn" type="button" class="secondary small">Apply &amp; re-parse</button>
+        <button id="ngFindingsDismissBtn" type="button" class="secondary small" style="margin-left:6px;">Dismiss</button>
       </div>
     </div>
 
     <div class="card">
-      <h2><span class="n">2</span>Access <span style="font-weight:400;color:var(--ink-soft);font-size:11px;">— access site, closure, and aortogram derived automatically</span></h2>
+      <h2><span class="n">2</span>Intervention <span style="font-weight:400;color:var(--ink-soft);font-size:11px;">— treated vessels only; each gets a Procedure Performed line</span></h2>
+      <textarea id="ngInterventionInput" rows="4"
+        placeholder="e.g. right SFA stented with 6mm x 150mm SE stent, popliteal angioplasty with 5mm balloon"></textarea>
+      <div class="toolbar" id="ngInterventionNormalizeToolbar" style="display:none;">
+        <button id="ngInterventionNormalizeBtn" type="button" class="secondary small">✨ Fix dictation errors (AI)</button>
+        <span class="hint" id="ngInterventionNormalizeStatus"></span>
+      </div>
+      <div id="ngInterventionNormalizeResult" class="ai-result-card" style="display:none;">
+        <div class="ai-label">AI corrections — <span style="font-weight:500;text-transform:none;">edit if needed</span></div>
+        <div class="diff-wrap" id="ngInterventionDiff"></div>
+        <button id="ngInterventionApplyBtn" type="button" class="secondary small">Apply &amp; re-parse</button>
+        <button id="ngInterventionDismissBtn" type="button" class="secondary small" style="margin-left:6px;">Dismiss</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="n">3</span>Access <span style="font-weight:400;color:var(--ink-soft);font-size:11px;">— access site, closure, and aortogram derived automatically</span></h2>
       <label>Primary access</label>
       <div class="chiprow" id="ngPrimaryAccessChips">
         <span class="chip" data-primary-access="leftFemoral">Left femoral</span>
@@ -387,7 +402,7 @@
 
     <div class="card">
       <h2>Generated op note <span style="font-weight:400;color:var(--ink-soft);font-size:11px;">— draft only · physician review required before charting</span></h2>
-      <textarea class="note-output" id="ngNoteOutput" readonly></textarea>
+      <div class="note-output" id="ngNoteOutput"></div>
       <div class="toolbar">
         <button id="ngCopyNoteBtn" class="secondary small">Copy note</button>
       </div>
@@ -2482,7 +2497,16 @@ function suggestCodes(){
   // treated with different modalities are each legitimately billable (initial + add-on
   // hierarchy). modalityKey() already handles single-vessel stent+angioplasty by
   // returning 'stent' when both are checked — angioplasty is bundled at the card level.
-  const filteredRows = rows;
+  // Pre-sort rows so higher-complexity vessels claim the initial slot first.
+  // Rule: within the iliac territory, a complex (occlusion/CTO) vessel must
+  // take the initial billing slot over a straightforward (stenosis) vessel,
+  // regardless of which side was listed first in the input. For all other
+  // territories the order is preserved as parsed.
+  const complexityRank = lesion => (lesion === 'complex' ? 0 : 1);
+  const filteredRows = [...rows].sort((a, b) => {
+    if(a.territory !== 'iliac' || b.territory !== 'iliac') return 0;
+    return complexityRank(a.lesion) - complexityRank(b.lesion);
+  });
 
   filteredRows.forEach(v=>{
     const terr = CODE_TABLE[v.territory];
@@ -2501,10 +2525,11 @@ function suggestCodes(){
 
     const modKey = modalityKey(v);
     const complexity = v.lesion;
-    // Count separately per side so that right iliac stent and left iliac stent
-    // each get the initial-vessel slot (37258-RT, 37258-LT) rather than one
-    // getting initial and the other getting additional.
-    const countKey = v.territory + (v.side ? '|'+v.side : '');
+    // For bilateral iliac, both sides share ONE initial slot — the higher-complexity
+    // vessel (sorted to front above) takes initial (37258/37260), and the second
+    // iliac vessel (even if opposite side) gets the add-on (+37259/+37261).
+    // All other territories count per side as before.
+    const countKey = v.territory === 'iliac' ? v.territory : v.territory + (v.side ? '|'+v.side : '');
     const count = territoryCount[countKey] || 0;
     territoryCount[countKey] = count+1; // count regardless of confirmation
 
@@ -3267,49 +3292,17 @@ let ngClosureByAccess = {};          // e.g. {rightFemoral:'perclose', leftFemor
 let ngAortogramTierAnswer = null;    // null | true | false — manual answer for the "ask" tier (crossover or bilateral below-iliac treatment)
 let ngLegAngiogramAnswer = null;     // null | true | false — did the leg angiogram independently drive the intervention?
 
-function ngDictationText(){ return document.getElementById('ngDictationInput').value || ''; }
-function ngCombinedText(){ return ngDictationText(); }
-
-// Split a single dictation into (findings, intervention) by clause.
-// A clause is a "finding" if it has no treatment modality keyword.
-// A clause with a treatment keyword produces BOTH a finding record (the
-// disease implied by having treated it) AND an intervention record.
-// "Rest patent / remainder normal" clauses are pure-normal and go to neither.
-function ngSplitDictation(text){
-  const segs = segmentNotegenText(text);
-  const findings = [];
-  const interventions = [];
-  const TREATMENT_RE = /\b(stent|angioplasty|plasty|pta|balloon|atherectomy|ivl|lithotripsy|dcb|thrombectomy|declot)\b/i;
-  segs.forEach(s => {
-    if (TREATMENT_RE.test(s.text)) {
-      // Has treatment: goes to intervention.
-      // Also push a minimal finding entry so the vessel shows up in
-      // the findings paragraph (with disease implied by intervention).
-      findings.push(s);
-      interventions.push(s);
-    } else {
-      // Disease-only or patent — goes to findings only.
-      findings.push(s);
-    }
-  });
-  return { findings, interventions };
-}
-
-function ngFindingsText(){
-  // Kept for backward compatibility with sedation/XU helpers that call it.
-  return ngDictationText();
-}
-function ngInterventionText(){
-  return ngDictationText();
-}
+function ngFindingsText(){ return document.getElementById('ngFindingsInput').value || ''; }
+function ngInterventionText(){ return document.getElementById('ngInterventionInput').value || ''; }
+function ngCombinedText(){ return ngFindingsText() + ' ' + ngInterventionText(); }
 
 // Determines whether this is a unilateral or bilateral case purely from
 // what's actually typed — no separate scope selector to keep in sync.
-// Falls back to "right" only when neither side is ever stated anywhere
-// (no Default Leg selector — Access is now the only place laterality gets
-// set explicitly, and Access doesn't gate this).
+// Falls back to "right" only when neither side is ever stated anywhere in
+// either box (no Default Leg selector any more — Access is now the only
+// place laterality gets set explicitly, and Access doesn't gate this).
 function ngComputeSides(){
-  const segs = segmentNotegenText(ngDictationText());
+  const segs = [...segmentNotegenText(ngFindingsText()), ...segmentNotegenText(ngInterventionText())];
   const used = new Set(segs.map(s=>s.side).filter(Boolean));
   if(used.has('right') && used.has('left')) return ['right','left'];
   if(used.has('right')) return ['right'];
@@ -3441,7 +3434,8 @@ function ngLegAngiogramIncluded(){
 // bilateral case can have the same vessel on both legs.
 function ngRawRecords(){
   const sides = ngComputeSides();
-  const { findings: findingSegsRaw, interventions: interventionSegsRaw } = ngSplitDictation(ngDictationText());
+  const findingSegsRaw = segmentNotegenText(ngFindingsText());
+  const interventionSegsRaw = segmentNotegenText(ngInterventionText());
 
   function resolve(segs){
     return segs.map(s=>{
@@ -4042,7 +4036,7 @@ function ngGenerateNoteText(){
 }
 
 function ngRenderNote(){
-  document.getElementById('ngNoteOutput').value = ngGenerateNoteText();
+  document.getElementById('ngNoteOutput').textContent = ngGenerateNoteText();
 }
 
 // ---------- Code generation (notegen tab) ----------
@@ -4259,17 +4253,8 @@ function ngRenderAll(){
 }
 
 // ---------- Wiring ----------
-document.getElementById('ngDictationInput').addEventListener('input', ()=>{
-  // Reset lesion/stent overrides and pending answers when text changes —
-  // the user is editing the source of truth, stale manual answers mislead.
-  ngManualLesion = {};
-  ngManualStentSize = {};
-  ngUsGuidanceAnswer = null;
-  ngSedationAnswered = false;
-  ngSedationMinutes = 0;
-  ngLegAngiogramAnswer = null;
-  ngRenderAll();
-});
+document.getElementById('ngFindingsInput').addEventListener('input', ngRenderAll);
+document.getElementById('ngInterventionInput').addEventListener('input', ngRenderAll);
 
 function ngRenderClosurePickers(){
   const container = document.getElementById('ngClosureContainer');
@@ -4366,38 +4351,70 @@ renderAll();
 
 // ---------- Tab 2 AI Normalize toolbar visibility ----------
 if(PROXY_URL){
-  document.getElementById('ngDictationNormalizeToolbar').style.display='';
+  document.getElementById('ngFindingsNormalizeToolbar').style.display='';
+  document.getElementById('ngInterventionNormalizeToolbar').style.display='';
 }
 
-// ---------- Tab 5 single-box normalize ----------
-document.getElementById('ngDictationNormalizeBtn')?.addEventListener('click', async()=>{
-  const raw = document.getElementById('ngDictationInput').value.trim();
-  if(!raw){ document.getElementById('ngDictationNormalizeStatus').textContent='Enter some text first.'; return; }
+// ---------- Tab 4 Findings normalize ----------
+document.getElementById('ngFindingsNormalizeBtn')?.addEventListener('click', async()=>{
+  const raw = document.getElementById('ngFindingsInput').value.trim();
+  if(!raw){ document.getElementById('ngFindingsNormalizeStatus').textContent='Enter some text first.'; return; }
   if(!PROXY_URL) return;
-  const btn = document.getElementById('ngDictationNormalizeBtn');
-  const statusEl = document.getElementById('ngDictationNormalizeStatus');
+  const btn = document.getElementById('ngFindingsNormalizeBtn');
+  const statusEl = document.getElementById('ngFindingsNormalizeStatus');
   btn.disabled = true; statusEl.textContent = 'Fixing…';
-  document.getElementById('ngDictationNormalizeResult').style.display='none';
+  document.getElementById('ngFindingsNormalizeResult').style.display='none';
   try{
     const res = await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:raw})});
     const data = await res.json();
     if(!res.ok) throw new Error(data.error||`Error ${res.status}`);
-    window._ngDictationNormalized = data.normalized;
-    renderWordDiff(raw, data.normalized, 'ngDictationDiff');
-    document.getElementById('ngDictationNormalizeResult').style.display='';
+    window._ngFindingsNormalized = data.normalized;
+    renderWordDiff(raw, data.normalized, 'ngFindingsDiff');
+    document.getElementById('ngFindingsNormalizeResult').style.display='';
     statusEl.textContent='';
   }catch(e){ statusEl.textContent='Error: '+e.message; }
   finally{ btn.disabled=false; }
 });
-document.getElementById('ngDictationApplyBtn')?.addEventListener('click',()=>{
-  if(window._ngDictationNormalized){
-    document.getElementById('ngDictationInput').value = window._ngDictationNormalized;
-    document.getElementById('ngDictationNormalizeResult').style.display='none';
+document.getElementById('ngFindingsApplyBtn')?.addEventListener('click',()=>{
+  if(window._ngFindingsNormalized){
+    document.getElementById('ngFindingsInput').value = window._ngFindingsNormalized;
+    document.getElementById('ngFindingsNormalizeResult').style.display='none';
     ngRenderAll();
   }
 });
-document.getElementById('ngDictationDismissBtn')?.addEventListener('click',()=>{
-  document.getElementById('ngDictationNormalizeResult').style.display='none';
+document.getElementById('ngFindingsDismissBtn')?.addEventListener('click',()=>{
+  document.getElementById('ngFindingsNormalizeResult').style.display='none';
+});
+
+// ---------- Tab 4 Intervention normalize ----------
+document.getElementById('ngInterventionNormalizeBtn')?.addEventListener('click', async()=>{
+  const raw = document.getElementById('ngInterventionInput').value.trim();
+  if(!raw){ document.getElementById('ngInterventionNormalizeStatus').textContent='Enter some text first.'; return; }
+  if(!PROXY_URL) return;
+  const btn = document.getElementById('ngInterventionNormalizeBtn');
+  const statusEl = document.getElementById('ngInterventionNormalizeStatus');
+  btn.disabled = true; statusEl.textContent = 'Fixing…';
+  document.getElementById('ngInterventionNormalizeResult').style.display='none';
+  try{
+    const res = await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:raw})});
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error||`Error ${res.status}`);
+    window._ngInterventionNormalized = data.normalized;
+    renderWordDiff(raw, data.normalized, 'ngInterventionDiff');
+    document.getElementById('ngInterventionNormalizeResult').style.display='';
+    statusEl.textContent='';
+  }catch(e){ statusEl.textContent='Error: '+e.message; }
+  finally{ btn.disabled=false; }
+});
+document.getElementById('ngInterventionApplyBtn')?.addEventListener('click',()=>{
+  if(window._ngInterventionNormalized){
+    document.getElementById('ngInterventionInput').value = window._ngInterventionNormalized;
+    document.getElementById('ngInterventionNormalizeResult').style.display='none';
+    ngRenderAll();
+  }
+});
+document.getElementById('ngInterventionDismissBtn')?.addEventListener('click',()=>{
+  document.getElementById('ngInterventionNormalizeResult').style.display='none';
 });
 
 // Copy codes button (Tab 1)
