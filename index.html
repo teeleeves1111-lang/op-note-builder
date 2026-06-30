@@ -284,8 +284,9 @@
     <!-- Input card -->
     <div class="card">
       <h2><span class="n">1</span>What was done?</h2>
+      <p id="noteInputHint" style="margin:0 0 6px;font-size:12px;color:var(--ink-soft);">Enter procedures as shorthand, one per vessel — e.g. <em>right EIA stent stenosis, right SFA pop occlusion stent, right AT plasty, right PT plasty</em></p>
       <textarea id="noteInput" rows="7"
-        placeholder="Tap here · type, paste, or use your phone's mic&#10;e.g. right SFA stent, popliteal atherectomy, AT angioplasty, 20 min sedation"></textarea>
+        placeholder="Tap here · type, paste, or use your phone's mic&#10;e.g. right EIA stent stenosis, right SFA pop occlusion stent, right AT plasty, right PT plasty, 20 min sedation"></textarea>
       <div class="toolbar" id="normalizeToolbar" style="display:none;">
         <button id="normalizeBtn" class="secondary small" type="button">✨ Fix dictation errors (AI)</button>
         <span id="pastePhiWarning" style="display:none;font-size:11px;color:#b45309;margin-left:8px;">⚠️ AI disabled after paste — edit manually first to confirm no PHI, then it re-enables.</span>
@@ -478,12 +479,14 @@ function selectProc(chip) {
   // Restore text for new tab
   document.getElementById('noteInput').value = procNoteText[currentProc] || '';
   document.getElementById('noteInput').placeholder = currentProc === 'le'
-    ? 'Tap here · type, paste, or use your phone\'s mic\ne.g. right SFA stent, popliteal atherectomy, AT angioplasty, 20 min sedation'
+    ? 'Tap here · type, paste, or use your phone\'s mic\ne.g. right EIA stent stenosis, right SFA pop occlusion stent, right AT plasty, right PT plasty, 20 min sedation'
     : currentProc === 'fistula'
       ? 'Tap here · type, paste, or use your phone\'s mic\ne.g. AVG fistulogram, thrombectomy and angioplasty, IVUS, 25 min sedation, inflow artery treated'
       : currentProc === 'venous'
         ? 'Tap here · type, paste, or use your phone\'s mic\ne.g. left iliac vein stent, IVUS, venacavogram, no prior study, 20 min sedation'
         : 'Tap here · type, paste, or use your phone\'s mic\ne.g. left renal artery stent, no prior study, IVUS, 20 min sedation';
+  const noteHint = document.getElementById('noteInputHint');
+  if(noteHint) noteHint.style.display = currentProc === 'le' ? '' : 'none';
   if(currentProc === 'le') { vesselRows = []; renderVessels(); }
 }
 
@@ -1852,7 +1855,9 @@ function buildFistuloCodes(det, billing) {
 function parseVenousText(text) {
   const low = text.toLowerCase();
   const det = {};
-  det.stent = /iliac vein stent|venous stent|stent(?:ing)? of (?:the )?(?:left|right|bilateral)? ?iliac vein/.test(low)||(/\bstents?\b/.test(low)&&/\bvein\b|\bvenous\b|\biliac\b/.test(low));
+  // Exclude stenting that was deferred, aborted, or planned but not performed
+  const deferredStent = /possible stent|consider(?:ing)? stent|stent(?:ing)? for another day|stent(?:ing)? at a later|deferred stent|plan(?:ned)? stent|no stent (?:was )?(?:placed|deployed|available)|stent unavailable|end(?:ed)? the procedure/.test(low);
+  det.stent = !deferredStent && (/iliac vein stent|venous stent|stent(?:ing)? of (?:the )?(?:left|right|bilateral)? ?iliac vein/.test(low)||(/\bstents?\b/.test(low)&&/\bvein\b|\bvenous\b|\biliac\b/.test(low)));
   det.venoplasty = /venoplasty|balloon venoplasty|venous angioplasty|37248/.test(low) && !det.stent;
   det.ivcInsert = /ivc filter|inferior vena cava filter|filter (?:was )?placed|filter insertion/.test(low) && !/retriev|remov/.test(low);
   det.ivcRetrieve = /(?:ivc filter|filter) (?:was )?(?:retriev|remov)|filter retrieval/.test(low);
