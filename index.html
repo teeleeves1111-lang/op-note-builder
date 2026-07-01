@@ -4491,6 +4491,17 @@ const LOOKUP_OFFICE_PROCS = [
   { test:/pseudoaneurysm.*inject|inject.*pseudoaneurysm|thrombin inject/i,
     codes:[{code:'76942',desc:'Ultrasound guidance for needle placement (imaging supervision and interpretation)'},
            {code:'36002',desc:'Injection procedure for extremity venography or other vascular injection — used here for thrombin/pseudoaneurysm injection'}] },
+  // Subclavian / brachial / axillary artery stent — non-AV-access context
+  // Must be checked BEFORE the fistula gate since those vessels also appear
+  // in dialysis-access cases; here the distinguishing signal is "artery stent"
+  // or "artery angioplasty" WITHOUT AVF/AVG/fistula/dialysis vocabulary.
+  { test:/\b(subclavian|axillary|brachial)\s+artery\s+(stent|angioplasty|pta|intervention)/i,
+    codes:[
+      {code:'37236', desc:'Transcatheter arterial stent, initial vessel — subclavian/axillary/brachial artery'},
+      {code:'36215', desc:'Selective catheterization, 1st order brachiocephalic branch — left subclavian is 1st order (36215) from any access; right subclavian is 1st order from brachial/radial access but 2nd order (36216) from femoral access'},
+      {code:'75710', desc:'Upper extremity angiogram — bill if true independent diagnostic angiogram performed (prior study unavailable/inadequate); add -26 for professional component, -XU if first diagnostic study'},
+      {code:'76937', desc:'Ultrasound guidance for vascular access — add if brachial/radial access was documented with real-time imaging and saved image'},
+    ]},
 ];
 
 // Relevance gates — the territory parsers (fistula/venous/renal) are designed to
@@ -4499,7 +4510,9 @@ const LOOKUP_OFFICE_PROCS = [
 // fistulogram). That's fine inside the main app where the user already picked a
 // tab, but it makes a cross-territory lookup match everything. These gates require
 // at least one territory-specific keyword before that parser is even tried.
-const LOOKUP_FISTULA_RE = /\b(avf|avg|fistul|graft|dialysis access|declot|thrombectom.*fistula|brachial|cephalic|basilic|anastomos|subclavian)\b/i;
+// NOTE: "subclavian" and "brachial" removed from fistula gate — those words alone
+// don't indicate AV access; only genuine dialysis-circuit vocabulary triggers it.
+const LOOKUP_FISTULA_RE = /\b(avf|avg|fistul|graft|dialysis access|declot|cephalic|basilic|anastomos|subclavian vein|brachial vein)\b/i;
 const LOOKUP_VENOUS_RE = /\biliac vein|\bivc\b|vena cava|venous stent|venogram|venoplasty|filter (placement|insertion|retrieval|removal)|deep vein|dvt/i;
 const LOOKUP_RENAL_RE = /\brenal\b|\bceliac\b|\bsma\b|\bmesenteric\b|\bvisceral\b|\bhepatic artery|\bsplenic artery/i;
 
@@ -4680,9 +4693,9 @@ const LOOKUP_SUGGESTIONS = [
   {text:'avf fistulogram stent', cat:'Fistula'},
   {text:'avf fistulogram thrombectomy', cat:'Fistula'},
   {text:'avg fistulogram angioplasty', cat:'Fistula'},
-  {text:'subclavian artery stent', cat:'Fistula'},
+  {text:'subclavian artery stent', cat:'Arterial'},
   {text:'subclavian vein stent', cat:'Fistula'},
-  {text:'brachial artery stent', cat:'Fistula'},
+  {text:'brachial artery stent', cat:'Arterial'},
   {text:'cephalic arch stent', cat:'Fistula'},
   // Venous
   {text:'left iliac vein stent', cat:'Venous'},
