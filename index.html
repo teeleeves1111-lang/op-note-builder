@@ -4474,91 +4474,226 @@ document.getElementById('copyCodesBtn')?.addEventListener('click',()=>{
 // state (laterality, complexity toggles) that doesn't reduce to a single det object;
 // single-vessel LE queries work fine typed directly into the main LE tab. ==========
 
-const LOOKUP_OFFICE_PROCS = [
+// ── RELEVANCE GATES ───────────────────────────────────────────────────────
+// The territory parsers (fistula/venous/renal) always return a default code
+// for their own tab even on irrelevant input. These gates prevent cross-
+// territory false matches in the lookup tool.
+const LOOKUP_FISTULA_RE = /\b(avf|avg|fistul|graft|dialysis access|declot|cephalic|basilic|anastomos|subclavian vein|brachial vein)\b/i;
+const LOOKUP_VENOUS_RE  = /\biliac vein|\bivc\b|vena cava|venous stent|venogram|venoplasty|filter (placement|insertion|retrieval|removal)|deep vein|dvt/i;
+const LOOKUP_RENAL_RE   = /\brenal\b|\bceliac\b|\bsma\b|\bmesenteric\b|\bvisceral\b|\bhepatic artery|\bsplenic artery/i;
+
+// ── CODE BUNDLES ──────────────────────────────────────────────────────────
+// Each entry: test (required regex), or (optional second regex, OR logic),
+// label (card title), codes (array of {code, desc, conditional?}).
+// Conditional items shown with * — apply only when documented.
+// Entries checked in order; first match wins.
+
+const LOOKUP_BUNDLES = [
+
+  // ── TUNNELED CATHETERS ────────────────────────────────────────────────
   { test:/\b(hickman|permacath|perma-?cath|\bpc\b)\b.*\b(pull|remov|d\/?c|out|explant)/i,
-    or:/\b(pull|remov|d\/?c|out|explant)\b.*\b(hickman|permacath|perma-?cath|\bpc\b)/i,
-    codes:[{code:'36589',desc:'Removal of tunneled central venous catheter (Hickman/Permacath), without subcutaneous port'}] },
-  { test:/\b(hickman|permacath|perma-?cath|\bpc\b)\b/i,
-    codes:[{code:'36558',desc:'Insertion of tunneled central venous catheter (Hickman/Permacath), without subcutaneous port, age ≥5 — add image guidance (76937 US access, 77001 fluoro) if performed and documented'}] },
-  { test:/\b(port-?a-?cath|implantable port|\bport\b)\b.*\b(pull|remov|d\/?c|out|explant)/i,
-    codes:[{code:'36590',desc:'Removal of implanted subcutaneous port/reservoir, central venous'}] },
-  { test:/\b(port-?a-?cath|implantable port|\bport\b)\b/i,
-    codes:[{code:'36561',desc:'Insertion of tunneled central venous catheter with subcutaneous port, age ≥5 — add image guidance (76937 US access, 77001 fluoro) if performed and documented'}] },
-  { test:/\bpicc\b.*\b(pull|remov|d\/?c|out)/i,
-    codes:[{code:'36589',desc:'Removal of tunneled/PICC central venous catheter without port (PICC removal billed under same family)'}] },
-  { test:/\bpicc\b/i,
-    codes:[{code:'36569',desc:'Insertion of PICC, without subcutaneous port, age ≥5'}] },
-  { test:/pseudoaneurysm.*inject|inject.*pseudoaneurysm|thrombin inject/i,
-    codes:[{code:'76942',desc:'Ultrasound guidance for needle placement (imaging supervision and interpretation)'},
-           {code:'36002',desc:'Injection procedure for extremity venography or other vascular injection — used here for thrombin/pseudoaneurysm injection'}] },
-  // Subclavian / brachial / axillary artery stent — non-AV-access context
-  // Must be checked BEFORE the fistula gate since those vessels also appear
-  // in dialysis-access cases; here the distinguishing signal is "artery stent"
-  // or "artery angioplasty" WITHOUT AVF/AVG/fistula/dialysis vocabulary.
-  { test:/\b(subclavian|axillary|brachial)\s+artery\s+(stent|angioplasty|pta|intervention)/i,
+    or:  /\b(pull|remov|d\/?c|out|explant)\b.*\b(hickman|permacath|perma-?cath|\bpc\b)/i,
+    label:'Permacath / Hickman removal',
     codes:[
-      {code:'37236', desc:'Transcatheter arterial stent, initial vessel — subclavian/axillary/brachial artery'},
-      {code:'36215', desc:'Selective catheterization, 1st order brachiocephalic branch — left subclavian is 1st order (36215) from any access; right subclavian is 1st order from brachial/radial access but 2nd order (36216) from femoral access'},
-      {code:'75710', desc:'Upper extremity angiogram — bill if true independent diagnostic angiogram performed (prior study unavailable/inadequate); add -26 for professional component, -XU if first diagnostic study'},
-      {code:'76937', desc:'Ultrasound guidance for vascular access — add if brachial/radial access was documented with real-time imaging and saved image'},
+      {code:'36589', desc:'Removal of tunneled central venous catheter, without subcutaneous port'},
     ]},
+  { test:/\b(hickman|permacath|perma-?cath|\bpc\b)\b/i,
+    label:'Permacath / Hickman insertion',
+    codes:[
+      {code:'36558', desc:'Insertion of tunneled central venous catheter, without subcutaneous port, age \u226515'},
+      {code:'77001', desc:'Fluoroscopic guidance for central venous access device placement', conditional:true},
+      {code:'76937', desc:'Ultrasound guidance for vascular access \u2014 only if real-time US used and permanent image saved', conditional:true},
+    ]},
+
+  // ── PORT-A-CATH ───────────────────────────────────────────────────────
+  { test:/\b(port-?a-?cath|implantable port|\bport\b)\b.*\b(pull|remov|d\/?c|out|explant)/i,
+    label:'Port-a-cath removal',
+    codes:[
+      {code:'36590', desc:'Removal of implanted subcutaneous port/reservoir, central venous'},
+    ]},
+  { test:/\b(port-?a-?cath|implantable port|\bport\b)\b/i,
+    label:'Port-a-cath insertion',
+    codes:[
+      {code:'36561', desc:'Insertion of tunneled central venous catheter with subcutaneous port, age \u226515'},
+      {code:'77001', desc:'Fluoroscopic guidance for central venous access device placement', conditional:true},
+      {code:'76937', desc:'Ultrasound guidance for vascular access \u2014 only if real-time US used and permanent image saved', conditional:true},
+    ]},
+
+  // ── PICC ──────────────────────────────────────────────────────────────
+  { test:/\bpicc\b.*\b(pull|remov|d\/?c|out)/i,
+    label:'PICC removal',
+    codes:[
+      {code:'36589', desc:'Removal of PICC / tunneled central venous catheter, without port'},
+    ]},
+  { test:/\bpicc\b/i,
+    label:'PICC insertion',
+    codes:[
+      {code:'36569', desc:'Insertion of PICC, without subcutaneous port, age \u226515'},
+      {code:'76937', desc:'Ultrasound guidance for vascular access \u2014 only if real-time US used and permanent image saved', conditional:true},
+    ]},
+
+  // ── PSEUDOANEURYSM INJECTION ──────────────────────────────────────────
+  { test:/pseudoaneurysm.*inject|inject.*pseudoaneurysm|thrombin inject/i,
+    label:'Pseudoaneurysm injection (ultrasound-guided)',
+    codes:[
+      {code:'36002', desc:'Injection procedure (e.g. thrombin) for pseudoaneurysm or extremity vascular injection'},
+      {code:'76942', desc:'Ultrasound guidance for needle placement, imaging supervision and interpretation'},
+    ]},
+
+  // ── SUBCLAVIAN / BRACHIAL ARTERY STENT (non-AV-access) ───────────────
+  { test:/\b(subclavian|axillary|brachial)\s+artery\s+(stent|angioplasty|pta|intervention)/i,
+    label:'Subclavian / brachial artery stent (non-AV-access)',
+    codes:[
+      {code:'37236',  desc:'Arterial stent, initial vessel \u2014 subclavian/axillary/brachial artery (includes angioplasty in same vessel)'},
+      {code:'36215',  desc:'Selective catheterization, 1st order brachiocephalic branch \u2014 left subclavian = 36215 from any access; right subclavian = 36215 from brachial/radial, 36216 from femoral'},
+      {code:'75710',  desc:'Upper extremity angiogram \u2014 bill only if true independent diagnostic (no adequate prior study); add -26 pro component, -XU if first-ever study', conditional:true},
+      {code:'76937',  desc:'Ultrasound guidance for vascular access \u2014 only if real-time US used and permanent image saved', conditional:true},
+    ]},
+
+  // ── IVC FILTER ────────────────────────────────────────────────────────
+  // Since 2012, 37191/37192/37193 are fully bundled all-in-one codes.
+  // Do NOT separately bill 36010, 75825, or 76937 \u2014 all bundled in.
+  { test:/ivc filter.*(remov|retriev)|filter.*(remov|retriev).*ivc|(remov|retriev).*ivc filter/i,
+    label:'IVC filter removal / retrieval',
+    codes:[
+      {code:'37193', desc:'Retrieval of IVC filter, endovascular \u2014 ALL-INCLUSIVE: vascular access, vessel selection, imaging guidance (US + fluoro), radiological S&I. Do NOT separately bill 36010, 75825, or 76937'},
+    ]},
+  { test:/ivc filter.*reposition|reposition.*ivc filter/i,
+    label:'IVC filter repositioning',
+    codes:[
+      {code:'37192', desc:'Repositioning of IVC filter, endovascular \u2014 ALL-INCLUSIVE: vascular access, vessel selection, imaging guidance (US + fluoro), radiological S&I'},
+    ]},
+  { test:/ivc filter|vena cava filter|inferior vena cava filter/i,
+    label:'IVC filter insertion',
+    codes:[
+      {code:'37191', desc:'Insertion of IVC filter, endovascular \u2014 ALL-INCLUSIVE: vascular access, vessel selection, imaging guidance (US + fluoro), radiological S&I. Do NOT separately bill 36010, 75825, or 76937'},
+    ]},
+
+  // ── RENAL ARTERY BUNDLES ──────────────────────────────────────────────
+  // 36251 = selective cath + renal angiography + flush aortogram + roadmap \u2014 all bundled.
+  // Bill 36251 WITH intervention only when true independent diagnostic criteria met.
+  { test:/renal.*(stent|stenting)|stent.*renal/i,
+    label:'Renal artery stent',
+    codes:[
+      {code:'37236',  desc:'Arterial stent, initial vessel \u2014 renal artery (angioplasty in same vessel included; add +37237 for contralateral renal artery)'},
+      {code:'36251',  desc:'Selective cath + renal angiography, unilateral 1st order \u2014 bill only if true independent diagnostic (no adequate prior study); add -RT/-LT laterality modifier', conditional:true},
+      {code:'76937',  desc:'Ultrasound guidance for vascular access \u2014 only if real-time US used and permanent image saved', conditional:true},
+    ]},
+  { test:/renal.*(angioplasty|plasty|\bpta\b)|angioplasty.*renal/i,
+    label:'Renal artery angioplasty',
+    codes:[
+      {code:'37246',  desc:'Transluminal balloon angioplasty, initial artery \u2014 renal artery (add +37247 for additional vessel alongside stent elsewhere)'},
+      {code:'36251',  desc:'Selective cath + renal angiography, unilateral 1st order \u2014 bill only if true independent diagnostic (no adequate prior study)', conditional:true},
+      {code:'76937',  desc:'Ultrasound guidance for vascular access \u2014 only if real-time US used and permanent image saved', conditional:true},
+    ]},
+  { test:/renal.*(angio|arteriogram|diagnostic)|diagnostic.*renal/i,
+    label:'Renal artery diagnostic angiogram',
+    codes:[
+      {code:'36251',  desc:'Selective cath + renal angiography, unilateral 1st order \u2014 includes cath, selective angiography, flush aortogram, pressure measurements. Add -RT or -LT'},
+      {code:'36252',  desc:'Unilateral 2nd order or higher \u2014 use if catheter advanced into branch vessel'},
+      {code:'36253',  desc:'Bilateral 1st order \u2014 both renal arteries catheterized and imaged'},
+      {code:'36254',  desc:'Bilateral 2nd order or higher \u2014 branch-level cath of both renal arteries'},
+    ]},
+
+  // ── SMA / CELIAC / VISCERAL BUNDLES ──────────────────────────────────
+  // Key rules confirmed:
+  // \u2022 36245 IS bundled into 37236 stent \u2014 do NOT bill separately for the stented vessel
+  // \u2022 36245 IS separately billable for PTA-only or diagnostic-only visceral vessels
+  // \u2022 Two separate visceral vessels = 36245, 36245-59 (separate vascular families)
+  // \u2022 75726 includes flush aortogram \u2014 do NOT also bill 75625
+  { test:/\b(sma|celiac|mesenteric|visceral)\b.*(stent|stenting)|(stent|stenting).*(sma|celiac|mesenteric|visceral)/i,
+    label:'SMA / celiac artery stent',
+    codes:[
+      {code:'37236',    desc:'Arterial stent, initial vessel \u2014 SMA or celiac artery (includes angioplasty in same vessel)'},
+      {code:'36245',    desc:'Selective cath, 1st order abdominal visceral branch \u2014 BUNDLED into 37236; do NOT bill for the stented vessel. Bill 36245-59 only for any additional diagnostic-only visceral vessel catheterized'},
+      {code:'75726',    desc:'Visceral angiography, selective \u2014 bill if true independent diagnostic; includes flush aortogram (do NOT also bill 75625)', conditional:true},
+      {code:'36245-59', desc:'Additional visceral vessel catheterized for diagnostic purposes (e.g. if celiac stented but SMA also separately catheterized and imaged)', conditional:true},
+      {code:'75726-59', desc:'Additional visceral vessel angiography \u2014 -59 modifier required (separate vascular family)', conditional:true},
+    ]},
+  { test:/\b(sma|celiac|mesenteric|visceral)\b.*(angioplasty|plasty|\bpta\b)|(angioplasty|plasty|\bpta\b).*(sma|celiac|mesenteric)/i,
+    label:'SMA / celiac artery angioplasty',
+    codes:[
+      {code:'37246',    desc:'Transluminal balloon angioplasty, initial artery \u2014 SMA or celiac artery'},
+      {code:'36245',    desc:'Selective cath, 1st order abdominal visceral branch \u2014 separately billable for PTA-only vessel (unlike stent, not bundled into angioplasty code)'},
+      {code:'75726',    desc:'Visceral angiography, selective \u2014 bill if true independent diagnostic; includes flush aortogram (do NOT also bill 75625)', conditional:true},
+    ]},
+  { test:/\b(sma|celiac|mesenteric|visceral)\b.*(angio|arteriogram|diagnostic)|(angio|arteriogram|diagnostic).*(sma|celiac|mesenteric|visceral)/i,
+    label:'SMA / celiac artery diagnostic angiogram',
+    codes:[
+      {code:'36245',    desc:'Selective cath, 1st order abdominal visceral branch \u2014 celiac, SMA, and IMA are each separate vascular families, each separately billable'},
+      {code:'75726',    desc:'Visceral angiography, selective or supraselective \u2014 includes flush aortogram; do NOT also bill 75625'},
+      {code:'36245-59', desc:'Second visceral vessel (e.g. both celiac AND SMA catheterized) \u2014 -59 modifier required (separate vascular families)'},
+      {code:'75726-59', desc:'Second visceral vessel angiography \u2014 -59 modifier required'},
+    ]},
+
+  // ── SELECTIVE CATH IVC (diagnostic / balloon occlusion) ───────────────
+  // Distinct from IVC filter \u2014 catheter placement for venacavagram or balloon occlusion,
+  // NOT filter work (where 36010/75825 are bundled and not separately billable)
+  { test:/selective.*cath.*ivc|cath.*ivc.*selective|venacavagram|vena cavagram|ivc.*venogram|balloon.occlusion.*ivc/i,
+    label:'Selective catheterization IVC (diagnostic / balloon occlusion)',
+    codes:[
+      {code:'36010',  desc:'Catheter placement into inferior vena cava'},
+      {code:'75825',  desc:'Venacavagram, inferior, with serialography, radiological S&I \u2014 separately billable for diagnostic IVC imaging (distinct from IVC filter placement where this is bundled)'},
+      {code:'76937',  desc:'Ultrasound guidance for vascular access \u2014 only if real-time US used and permanent image saved', conditional:true},
+    ]},
+
 ];
 
-// Relevance gates — the territory parsers (fistula/venous/renal) are designed to
-// always return a base/default code for their own tab, even on irrelevant input
-// (e.g. parseFistuloText('renal artery stent') silently returns 36901 diagnostic
-// fistulogram). That's fine inside the main app where the user already picked a
-// tab, but it makes a cross-territory lookup match everything. These gates require
-// at least one territory-specific keyword before that parser is even tried.
-// NOTE: "subclavian" and "brachial" removed from fistula gate — those words alone
-// don't indicate AV access; only genuine dialysis-circuit vocabulary triggers it.
-const LOOKUP_FISTULA_RE = /\b(avf|avg|fistul|graft|dialysis access|declot|cephalic|basilic|anastomos|subclavian vein|brachial vein)\b/i;
-const LOOKUP_VENOUS_RE = /\biliac vein|\bivc\b|vena cava|venous stent|venogram|venoplasty|filter (placement|insertion|retrieval|removal)|deep vein|dvt/i;
-const LOOKUP_RENAL_RE = /\brenal\b|\bceliac\b|\bsma\b|\bmesenteric\b|\bvisceral\b|\bhepatic artery|\bsplenic artery/i;
+// lookupOfficeProcs: legacy name kept so performLookup still calls it;
+// now searches LOOKUP_BUNDLES and returns codes array only (for backward compat)
+function lookupOfficeProcs(text){
+  const b = lookupBundle(text);
+  return b ? b.codes : null;
+}
 
-// Selective catheterization — standalone reference table. These codes are billed
-// by ORDER of selectivity from the aortic origin (1st/2nd/3rd order), and the
-// correct family depends on which arterial tree the catheter was advanced into.
-// This is intentionally separate from LOOKUP_OFFICE_PROCS so a bare query like
-// "selective" or "selective catheterization" returns the index of families
-// below rather than nothing.
+// lookupBundle: returns the full bundle object {label, codes} for the first match
+function lookupBundle(text){
+  const low = text.toLowerCase();
+  for(const entry of LOOKUP_BUNDLES){
+    if(entry.test.test(low) || (entry.or && entry.or.test(low))){
+      return entry;
+    }
+  }
+  return null;
+}
+
+// Selective catheterization order-of-selectivity reference table —
+// shown when user types "selective" or "selective catheterization" without
+// enough context to pick a bundle (e.g. no specific vessel/modality).
 const LOOKUP_CATH_FAMILIES = [
-  { label:'Renal / visceral artery (abdominal aorta branch)',
+  { label:'Selective cath — Renal / visceral artery',
     rows:[
-      {code:'36251',desc:'Selective catheterization, renal artery, unilateral, 1st order — includes angiography'},
-      {code:'36252',desc:'Selective catheterization, renal artery, unilateral, 2nd order or higher (e.g. branch renal artery) — includes angiography'},
-      {code:'36253',desc:'Selective catheterization, renal artery, bilateral, 1st order — includes angiography'},
-      {code:'36254',desc:'Selective catheterization, renal artery, bilateral, 2nd order or higher — includes angiography'},
-      {code:'36245',desc:'Selective catheterization, 1st order abdominal visceral branch (celiac, SMA, or IMA) — each vessel separately billable as its own vascular family'},
-      {code:'36246',desc:'Selective catheterization, 2nd order abdominal visceral branch (e.g. hepatic, splenic, gastroduodenal off celiac)'},
-      {code:'36247',desc:'Selective catheterization, 3rd order or higher abdominal visceral branch'},
+      {code:'36251',desc:'Renal artery, unilateral, 1st order — includes angiography, flush aortogram'},
+      {code:'36252',desc:'Renal artery, unilateral, 2nd order or higher (branch vessel)'},
+      {code:'36253',desc:'Renal artery, bilateral, 1st order'},
+      {code:'36254',desc:'Renal artery, bilateral, 2nd order or higher'},
+      {code:'36245',desc:'1st order abdominal visceral branch (celiac, SMA, IMA) — each vessel a separate family'},
+      {code:'36246',desc:'2nd order visceral branch (e.g. hepatic, splenic off celiac)'},
+      {code:'36247',desc:'3rd order or higher visceral branch'},
     ]},
-  { label:'Lower extremity (iliac / femoral / tibial)',
+  { label:'Selective cath — Lower extremity (iliac / femoral / tibial)',
     rows:[
-      {code:'36245',desc:'Selective catheterization, 1st order lower extremity branch — common iliac artery'},
-      {code:'36246',desc:'Selective catheterization, 2nd order lower extremity branch — external iliac / common femoral artery'},
-      {code:'36247',desc:'Selective catheterization, 3rd order or higher lower extremity branch — SFA, profunda, or beyond (popliteal, tibial)'},
+      {code:'36245',desc:'1st order LE branch — common iliac artery'},
+      {code:'36246',desc:'2nd order LE branch — external iliac / common femoral artery'},
+      {code:'36247',desc:'3rd order or higher LE branch — SFA, profunda, or beyond'},
     ]},
-  { label:'Upper extremity / brachiocephalic (subclavian, axillary, brachial)',
+  { label:'Selective cath — Upper extremity / brachiocephalic',
     rows:[
-      {code:'36215',desc:'Selective catheterization, 1st order thoracic/brachiocephalic branch — e.g. innominate, subclavian, carotid'},
-      {code:'36216',desc:'Selective catheterization, 2nd order thoracic/brachiocephalic branch — e.g. axillary, vertebral'},
-      {code:'36217',desc:'Selective catheterization, 3rd order or higher thoracic/brachiocephalic branch — e.g. brachial and beyond'},
+      {code:'36215',desc:'1st order thoracic/brachiocephalic branch — innominate, subclavian, carotid'},
+      {code:'36216',desc:'2nd order — axillary, vertebral'},
+      {code:'36217',desc:'3rd order or higher — brachial and beyond'},
     ]},
-  { label:'Venous (IVC / iliac vein access)',
+  { label:'Selective cath — Venous (IVC / iliac vein)',
     rows:[
-      {code:'36010',desc:'Catheter placement, venous, first order (IVC or iliac vein) — used for venogram or venous stent access'},
-      {code:'36011',desc:'Catheter placement, venous, second order, selective (e.g. renal vein, hepatic vein)'},
-      {code:'36012',desc:'Catheter placement, venous, third order or higher, selective'},
+      {code:'36010',desc:'Catheter placement, IVC — 1st order venous (IVC or iliac vein)'},
+      {code:'36011',desc:'2nd order venous, selective (e.g. renal vein, hepatic vein)'},
+      {code:'36012',desc:'3rd order or higher venous, selective'},
     ]},
 ];
 
 function lookupCathFamilies(text){
   const low = text.toLowerCase();
   if(!/\bselective\b|\bcatheteriz|\bcath\b(?!eter insert|eter remov)|\b1st order|\b2nd order|\b3rd order|first order|second order|third order/.test(low)) return null;
-  // If a specific territory keyword is present, narrow to just that family;
-  // otherwise (bare "selective" / "selective catheterization") show all of them
-  // as an index so the person can see every option at a glance.
   if(LOOKUP_RENAL_RE.test(low)) return [LOOKUP_CATH_FAMILIES[0]];
   if(/\bsfa\b|popliteal|tibial|\biliac\b(?!\s+vein)|femoral/.test(low)) return [LOOKUP_CATH_FAMILIES[1]];
   if(/subclavian|axillary|brachial|innominate|carotid|vertebral/.test(low)) return [LOOKUP_CATH_FAMILIES[2]];
@@ -4566,25 +4701,21 @@ function lookupCathFamilies(text){
   return LOOKUP_CATH_FAMILIES;
 }
 
-function lookupOfficeProcs(text){
-  const low = text.toLowerCase();
-  for(const entry of LOOKUP_OFFICE_PROCS){
-    if(entry.test.test(low) || (entry.or && entry.or.test(low))){
-      return entry.codes;
-    }
-  }
-  return null;
-}
-
 function renderLookupCodeList(title, codes, note){
+  const hasCond = codes && codes.some(c=>c.conditional);
   let html = `<div class="card" style="margin-top:10px;"><h2 style="font-size:14px;">${title}</h2>`;
   if(note) html += `<p style="margin:0 0 8px;font-size:12px;color:var(--ink-soft);">${note}</p>`;
   if(codes && codes.length){
     html += `<div class="code-list">`;
     codes.forEach(c=>{
-      html += `<div class="code-item"><div class="code-main"><span class="code">${c.code}</span><span class="desc">${c.desc}</span></div></div>`;
+      const condMark = c.conditional ? `<span style="color:var(--pending-dark,#b45309);font-weight:600;margin-left:4px;">*</span>` : '';
+      const rowStyle = c.conditional ? 'opacity:0.75;' : '';
+      html += `<div class="code-item" style="${rowStyle}"><div class="code-main"><span class="code">${c.code}</span>${condMark}<span class="desc">${c.desc}</span></div></div>`;
     });
     html += `</div>`;
+    if(hasCond){
+      html += `<p style="margin:6px 0 0;font-size:11px;color:var(--ink-soft);"><span style="color:var(--pending-dark,#b45309);font-weight:600;">*</span> Add only when performed and documented</p>`;
+    }
   } else if(!note){
     html += `<p style="margin:0;font-size:12px;color:var(--ink-soft);">No code determined yet.</p>`;
   }
@@ -4603,65 +4734,74 @@ function performLookup(){
   let html = '';
   let anyMatch = false;
 
-  // 1. Office procedures (hardcoded table — fastest, most specific check first)
-  const officeCodes = lookupOfficeProcs(raw);
-  if(officeCodes){
-    html += renderLookupCodeList('Office procedure', officeCodes);
+  // 1. Code bundles (hardcoded table — fastest, most specific check first)
+  const bundle = lookupBundle(raw);
+  if(bundle){
+    html += renderLookupCodeList(bundle.label, bundle.codes);
     anyMatch = true;
   }
 
-  // 1.5. Selective catheterization — standalone reference (bare "selective" or
-  // "selective catheterization" shows the index of all families; a territory
-  // keyword present narrows to just that one)
-  const cathFamilies = lookupCathFamilies(raw);
-  if(cathFamilies){
-    cathFamilies.forEach(fam=>{
-      html += renderLookupCodeList(fam.label, fam.rows);
-    });
-    anyMatch = true;
+  // 1.5. Selective catheterization — standalone reference.
+  // Only shown when NO bundle matched (bundles for specific procedures are more useful)
+  // and when the query is generic enough to warrant showing the full family index.
+  if(!bundle){
+    const cathFamilies = lookupCathFamilies(raw);
+    if(cathFamilies){
+      cathFamilies.forEach(fam=>{
+        html += renderLookupCodeList(fam.label, fam.rows);
+      });
+      anyMatch = true;
+    }
   }
 
-  // 2. Fistula — only if dialysis-access vocabulary is present
-  if(LOOKUP_FISTULA_RE.test(raw)){
-    try {
-      const det = parseFistuloText(raw);
-      const result = buildFistuloCodes(det, 'pro');
-      const pending = buildPendingForProc(det, 'fistula');
-      if((result.codes && result.codes.length) || pending.length){
-        const note = pending.length ? '⏳ ' + pending.map(p=>p.text).join(' ') : null;
-        html += renderLookupCodeList('Fistulogram / dialysis access', result.codes||[], note);
-        anyMatch = true;
-      }
-    } catch(e){}
-  }
+  // 2-4. Territory parsers — only run when NO bundle matched.
+  // Bundles are the authoritative source for procedures they cover;
+  // running parsers on top would duplicate/contradict them.
+  if(!bundle){
 
-  // 3. Venous — only if venous vocabulary is present
-  if(LOOKUP_VENOUS_RE.test(raw)){
-    try {
-      const det = parseVenousText(raw);
-      const result = buildVenousCodes(det, 'pro');
-      const pending = buildPendingForProc(det, 'venous');
-      if((result.codes && result.codes.length) || pending.length){
-        const note = pending.length ? '⏳ ' + pending.map(p=>p.text).join(' ') : null;
-        html += renderLookupCodeList('Venous', result.codes||[], note);
-        anyMatch = true;
-      }
-    } catch(e){}
-  }
+    // 2. Fistula — only if dialysis-access vocabulary is present
+    if(LOOKUP_FISTULA_RE.test(raw)){
+      try {
+        const det = parseFistuloText(raw);
+        const result = buildFistuloCodes(det, 'pro');
+        const pending = buildPendingForProc(det, 'fistula');
+        if((result.codes && result.codes.length) || pending.length){
+          const note = pending.length ? '⏳ ' + pending.map(p=>p.text).join(' ') : null;
+          html += renderLookupCodeList('Fistulogram / dialysis access', result.codes||[], note);
+          anyMatch = true;
+        }
+      } catch(e){}
+    }
 
-  // 4. Renal/Visceral — only if renal/visceral vocabulary is present
-  if(LOOKUP_RENAL_RE.test(raw)){
-    try {
-      const det = parseRenalText(raw);
-      const result = buildRenalCodes(det, 'pro');
-      const pending = buildPendingForProc(det, 'renal');
-      if((result.codes && result.codes.length) || pending.length){
-        const note = pending.length ? '⏳ ' + pending.map(p=>p.text).join(' ') : null;
-        html += renderLookupCodeList('Renal / Visceral', result.codes||[], note);
-        anyMatch = true;
-      }
-    } catch(e){}
-  }
+    // 3. Venous — only if venous vocabulary is present
+    if(LOOKUP_VENOUS_RE.test(raw)){
+      try {
+        const det = parseVenousText(raw);
+        const result = buildVenousCodes(det, 'pro');
+        const pending = buildPendingForProc(det, 'venous');
+        if((result.codes && result.codes.length) || pending.length){
+          const note = pending.length ? '⏳ ' + pending.map(p=>p.text).join(' ') : null;
+          html += renderLookupCodeList('Venous', result.codes||[], note);
+          anyMatch = true;
+        }
+      } catch(e){}
+    }
+
+    // 4. Renal/Visceral — only if renal/visceral vocabulary is present
+    if(LOOKUP_RENAL_RE.test(raw)){
+      try {
+        const det = parseRenalText(raw);
+        const result = buildRenalCodes(det, 'pro');
+        const pending = buildPendingForProc(det, 'renal');
+        if((result.codes && result.codes.length) || pending.length){
+          const note = pending.length ? '⏳ ' + pending.map(p=>p.text).join(' ') : null;
+          html += renderLookupCodeList('Renal / Visceral', result.codes||[], note);
+          anyMatch = true;
+        }
+      } catch(e){}
+    }
+
+  } // end !bundle guard
 
   if(!anyMatch){
     html = `<div class="card" style="margin-top:10px;border-color:var(--pending);">
@@ -4693,34 +4833,39 @@ const LOOKUP_SUGGESTIONS = [
   {text:'avf fistulogram stent', cat:'Fistula'},
   {text:'avf fistulogram thrombectomy', cat:'Fistula'},
   {text:'avg fistulogram angioplasty', cat:'Fistula'},
-  {text:'subclavian artery stent', cat:'Arterial'},
+  {text:'subclavian artery stent', cat:'Bundle'},
   {text:'subclavian vein stent', cat:'Fistula'},
-  {text:'brachial artery stent', cat:'Arterial'},
+  {text:'brachial artery stent', cat:'Bundle'},
   {text:'cephalic arch stent', cat:'Fistula'},
   // Venous
   {text:'left iliac vein stent', cat:'Venous'},
   {text:'right iliac vein stent', cat:'Venous'},
   {text:'bilateral iliac vein stents', cat:'Venous'},
-  {text:'ivc filter insertion', cat:'Venous'},
-  {text:'ivc filter removal', cat:'Venous'},
+  {text:'ivc filter insertion', cat:'Bundle'},
+  {text:'ivc filter removal', cat:'Bundle'},
+  {text:'ivc filter repositioning', cat:'Bundle'},
   {text:'venogram diagnostic', cat:'Venous'},
-  // Renal / Visceral
-  {text:'renal artery stent', cat:'Renal'},
-  {text:'renal artery angioplasty', cat:'Renal'},
-  {text:'renal artery diagnostic angiogram', cat:'Renal'},
-  {text:'celiac artery stent', cat:'Renal'},
-  {text:'sma stent', cat:'Renal'},
+  // Renal / Visceral — bundles
+  {text:'renal artery stent', cat:'Bundle'},
+  {text:'renal artery angioplasty', cat:'Bundle'},
+  {text:'renal artery diagnostic angiogram', cat:'Bundle'},
+  {text:'celiac artery stent', cat:'Bundle'},
+  {text:'celiac artery angioplasty', cat:'Bundle'},
+  {text:'celiac artery diagnostic angiogram', cat:'Bundle'},
+  {text:'sma stent', cat:'Bundle'},
+  {text:'sma angioplasty', cat:'Bundle'},
+  {text:'sma diagnostic angiogram', cat:'Bundle'},
   {text:'bilateral renal artery stents', cat:'Renal'},
-  // Office procedures
-  {text:'permacath insertion', cat:'Office'},
-  {text:'permacath removal', cat:'Office'},
-  {text:'pc pull', cat:'Office'},
-  {text:'hickman insertion', cat:'Office'},
-  {text:'hickman removal', cat:'Office'},
-  {text:'port-a-cath insertion', cat:'Office'},
-  {text:'port-a-cath removal', cat:'Office'},
-  {text:'picc insertion', cat:'Office'},
-  {text:'pseudoaneurysm thrombin injection', cat:'Office'},
+  // Office / catheter bundles
+  {text:'permacath insertion', cat:'Bundle'},
+  {text:'permacath removal', cat:'Bundle'},
+  {text:'pc pull', cat:'Bundle'},
+  {text:'hickman insertion', cat:'Bundle'},
+  {text:'hickman removal', cat:'Bundle'},
+  {text:'port-a-cath insertion', cat:'Bundle'},
+  {text:'port-a-cath removal', cat:'Bundle'},
+  {text:'picc insertion', cat:'Bundle'},
+  {text:'pseudoaneurysm thrombin injection', cat:'Bundle'},
   // Selective catheterization
   {text:'selective catheterization', cat:'Cath (all families)'},
   {text:'selective catheterization renal artery', cat:'Cath'},
@@ -4728,6 +4873,7 @@ const LOOKUP_SUGGESTIONS = [
   {text:'selective catheterization iliac', cat:'Cath'},
   {text:'selective catheterization subclavian', cat:'Cath'},
   {text:'selective catheterization iliac vein', cat:'Cath'},
+  {text:'selective catheterization ivc', cat:'Bundle'},
 ];
 
 (function(){
