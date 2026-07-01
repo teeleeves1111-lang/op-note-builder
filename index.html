@@ -4478,7 +4478,7 @@ document.getElementById('copyCodesBtn')?.addEventListener('click',()=>{
 // The territory parsers (fistula/venous/renal) always return a default code
 // for their own tab even on irrelevant input. These gates prevent cross-
 // territory false matches in the lookup tool.
-const LOOKUP_FISTULA_RE = /\b(avf|avg|fistul|graft|dialysis access|declot|cephalic|basilic|anastomos|subclavian vein|brachial vein)\b/i;
+const LOOKUP_FISTULA_RE = /\b(avf|avg|fistul|graft|dialysis access|declot|cephalic|basilic|anastomos|subclavian vein|brachial vein)/i;
 const LOOKUP_VENOUS_RE  = /\biliac vein|\bivc\b|vena cava|venous stent|venogram|venoplasty|filter (placement|insertion|retrieval|removal)|deep vein|dvt/i;
 const LOOKUP_RENAL_RE   = /\brenal\b|\bceliac\b|\bsma\b|\bmesenteric\b|\bvisceral\b|\bhepatic artery|\bsplenic artery/i;
 
@@ -4646,6 +4646,126 @@ function lookupOfficeProcs(text){
   return b ? b.codes : null;
 }
 
+// ── LOWER EXTREMITY LOOKUP ────────────────────────────────────────────────
+// Two modes:
+// 1. Specific query (side + vessel + modality detectable by parseFullNote):
+//    → run the parser, compute codes via the existing pure helper functions,
+//      return a rendered result card.
+// 2. Bare keyword (just a vessel/territory name, no side or modality):
+//    → show a reference table of all codes possible in that territory,
+//      pulled directly from CODE_TABLE — same source of truth as the main app.
+
+// Modality display labels for the reference table
+const MODALITY_LABELS = {
+  angioplasty:    'Angioplasty',
+  stent:          'Stent',
+  atherectomy:    'Atherectomy',
+  stentAtherectomy:'Stent + atherectomy',
+};
+const COMPLEXITY_LABELS = {straightforward:'Stenosis', complex:'Occlusion/CTO'};
+
+// Bare vessel/territory keywords that trigger the reference table
+const LE_TERRITORY_MAP = {
+  iliac:         /\biliac\b/i,
+  femoropopliteal:/\bsfa\b|\bfemoral\b|\bpopliteal\b|\bfemoropopliteal\b|\bpop\b/i,
+  tibioperoneal: /\btibial\b|\bperoneal\b|\bat\b|\bpt\b|\banterior tibial\b|\bposterior tibial\b/i,
+  inframalleolar:/\binframalleolar\b|\bdorsalis pedis\b|\bplantar\b|\bdp\b/i,
+};
+
+function buildLEReferenceTable(territory){
+  const terr = CODE_TABLE[territory];
+  if(!terr) return null;
+  const rows = [];
+  Object.entries(terr.modalities).forEach(([modKey, complexities])=>{
+    const modLabel = MODALITY_LABELS[modKey] || modKey;
+    Object.entries(complexities).forEach(([comp, codes])=>{
+      const compLabel = COMPLEXITY_LABELS[comp] || comp;
+      rows.push({
+        code: codes[0],
+        desc: `${modLabel} — ${compLabel} (initial vessel); add-on: +${codes[1]}`,
+      });
+    });
+  });
+  // IVL
+  if(terr.ivl){
+    rows.push({code:'+'+terr.ivl.code, desc:`Intravascular lithotripsy (IVL) add-on — up to ${terr.ivl.maxPerLeg}x per leg in this territory`});
+  }
+  if(terr.atherNote){
+    rows.push({code:'⚠', desc:terr.atherNote});
+  }
+  return {label:`Lower extremity — ${terr.label} territory`, rows};
+}
+
+function computeLECodesForLookup(vessel){
+  // Uses the same pure functions as suggestCodes() but for a single vessel
+  // without touching global state.
+  if(!hasModality(vessel)) return null;
+  const modKey = modalityKey(vessel);
+  const sideTag = vessel.side==='right'?'-RT':vessel.side==='left'?'-LT':'';
+  const terr = CODE_TABLE[vessel.territory];
+  if(!terr) return null;
+
+  const codes = [];
+
+  // IVL add-on (pro mode only — lookup is always pro reference)
+  if(vessel.lithotripsy && terr.ivl){
+    codes.push({
+      code:`+${terr.ivl.code}${sideTag}`,
+      desc:`Intravascular lithotripsy add-on — ${vessel.vessel} (${terr.label})`,
+    });
+    if(vessel.stent){
+      // IVL + stent → also show the stent code
+      const stentLookup = lookupTerritoryCode(vessel.territory,'stent',vessel.lesion||'straightforward',0);
+      if(stentLookup.status==='ok'){
+        codes.unshift({code:stentLookup.code+sideTag, desc:`Stent — ${vessel.vessel}, ${vessel.lesion||'straightforward'} (includes angioplasty in same vessel)`});
+      }
+    }
+    return codes;
+  }
+
+  // Standard modality
+  const lookup = lookupTerritoryCode(vessel.territory, modKey, vessel.lesion||'straightforward', 0);
+  if(lookup.status==='ok'){
+    const complexity = vessel.lesion==='complex' ? 'occlusion/CTO' : 'stenosis';
+    codes.push({
+      code: lookup.code+sideTag,
+      desc: `${MODALITY_LABELS[modKey]||modKey} — ${vessel.vessel}, ${complexity} (initial vessel)`,
+    });
+  }
+  if(lookup.status==='invalid-modality' && terr.atherNote){
+    codes.push({code:'⚠', desc:terr.atherNote});
+  }
+  return codes.length ? codes : null;
+}
+
+function lookupLEResult(raw){
+  // Try specific query first (parser returns ≥1 vessel with modality)
+  try {
+    const parsed = parseFullNote(raw);
+    if(parsed && parsed.length > 0 && parsed.some(v=>hasModality(v))){
+      const allCodes = [];
+      parsed.forEach(v=>{
+        if(!hasModality(v)) return;
+        const codes = computeLECodesForLookup(v);
+        if(codes) allCodes.push(...codes);
+      });
+      if(allCodes.length){
+        return {type:'computed', label:'Lower extremity', codes:allCodes};
+      }
+    }
+  } catch(e){}
+
+  // Fall back to reference table for bare vessel/territory keywords
+  for(const [territory, re] of Object.entries(LE_TERRITORY_MAP)){
+    if(re.test(raw)){
+      const table = buildLEReferenceTable(territory);
+      if(table) return {type:'reference', ...table};
+    }
+  }
+
+  return null;
+}
+
 // lookupBundle: returns the full bundle object {label, codes} for the first match
 function lookupBundle(text){
   const low = text.toLowerCase();
@@ -4741,6 +4861,21 @@ function performLookup(){
     anyMatch = true;
   }
 
+  // 1.2. Lower extremity — try specific parse first, fall back to reference table.
+  // Runs regardless of bundle match (LE vessels don't overlap with any bundles).
+  const leResult = lookupLEResult(raw);
+  if(leResult){
+    if(leResult.type === 'computed'){
+      html += renderLookupCodeList(leResult.label, leResult.codes,
+        leResult.codes.some(c=>c.code.startsWith('⚠')) ? null :
+        '<span style="font-size:11px;color:var(--ink-soft);">Pro mode · single vessel · add sedation, US guidance, aortogram/angiogram codes separately</span>');
+    } else {
+      // Reference table — use same rows format as cath families
+      html += renderLookupCodeList(leResult.label, leResult.rows);
+    }
+    anyMatch = true;
+  }
+
   // 1.5. Selective catheterization — standalone reference.
   // Only shown when NO bundle matched (bundles for specific procedures are more useful)
   // and when the query is generic enough to warrant showing the full family index.
@@ -4765,9 +4900,27 @@ function performLookup(){
         const det = parseFistuloText(raw);
         const result = buildFistuloCodes(det, 'pro');
         const pending = buildPendingForProc(det, 'fistula');
+        const hasSpecificModality = det.stent||det.angioplasty||det.thrombectomy||det.declot||det.centralStent||det.centralPlasty;
         if((result.codes && result.codes.length) || pending.length){
           const note = pending.length ? '⏳ ' + pending.map(p=>p.text).join(' ') : null;
           html += renderLookupCodeList('Fistulogram / dialysis access', result.codes||[], note);
+          anyMatch = true;
+        }
+        // If no specific modality was detected, also show the full reference table
+        // so users can see all the options (36901–36906 + add-ons) at a glance
+        if(!hasSpecificModality){
+          html += renderLookupCodeList('Fistulogram — full code reference', [
+            {code:'36901', desc:'Diagnostic only — no peripheral intervention'},
+            {code:'36902', desc:'+ Peripheral angioplasty (AVF/AVG peripheral segment)'},
+            {code:'36903', desc:'+ Peripheral stent (includes angioplasty in same vessel)'},
+            {code:'36904', desc:'+ Peripheral thrombectomy, no peripheral intervention'},
+            {code:'36905', desc:'+ Peripheral thrombectomy + angioplasty'},
+            {code:'36906', desc:'+ Peripheral thrombectomy + stent'},
+            {code:'+36907', desc:'Central segment angioplasty add-on (axillary, subclavian, innominate, SVC)', conditional:true},
+            {code:'+36908', desc:'Central segment stent add-on (same central vessels)', conditional:true},
+            {code:'37252',  desc:'IVUS, initial vessel', conditional:true},
+            {code:'+37253', desc:'IVUS, each additional vessel', conditional:true},
+          ]);
           anyMatch = true;
         }
       } catch(e){}
@@ -4829,7 +4982,26 @@ document.getElementById('lookupBtn')?.addEventListener('click', performLookup);
 // fills the box with something that actually resolves to a code. Grouped by
 // the same categories the lookup itself checks against.
 const LOOKUP_SUGGESTIONS = [
+  // Lower extremity — reference tables (bare territory keywords)
+  {text:'iliac', cat:'LE reference'},
+  {text:'sfa', cat:'LE reference'},
+  {text:'tibial', cat:'LE reference'},
+  {text:'inframalleolar', cat:'LE reference'},
+  // Lower extremity — computed codes (specific queries)
+  {text:'right iliac stent stenosis', cat:'LE'},
+  {text:'right iliac stent occlusion', cat:'LE'},
+  {text:'right iliac angioplasty stenosis', cat:'LE'},
+  {text:'right eia ivl stent', cat:'LE'},
+  {text:'right sfa stent stenosis', cat:'LE'},
+  {text:'right sfa stent occlusion', cat:'LE'},
+  {text:'right sfa atherectomy stenosis', cat:'LE'},
+  {text:'right sfa stent atherectomy occlusion', cat:'LE'},
+  {text:'right sfa ivl stent', cat:'LE'},
+  {text:'right at plasty stenosis', cat:'LE'},
+  {text:'right pt plasty occlusion', cat:'LE'},
+  {text:'right peroneal stent stenosis', cat:'LE'},
   // Fistula / dialysis access
+  {text:'fistulogram', cat:'Fistula reference'},
   {text:'avf fistulogram stent', cat:'Fistula'},
   {text:'avf fistulogram thrombectomy', cat:'Fistula'},
   {text:'avg fistulogram angioplasty', cat:'Fistula'},
