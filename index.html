@@ -4686,9 +4686,17 @@ function buildLEReferenceTable(territory){
       });
     });
   });
-  // IVL
+  // IVL — pro CPT add-on
   if(terr.ivl){
-    rows.push({code:'+'+terr.ivl.code, desc:`Intravascular lithotripsy (IVL) add-on — up to ${terr.ivl.maxPerLeg}x per leg in this territory`});
+    rows.push({code:'+'+terr.ivl.code, desc:`IVL add-on (pro) — up to ${terr.ivl.maxPerLeg}x per leg in this territory`});
+  }
+  // IVL — facility C-codes (replace CPT base + add-on on facility/UB-04 claims)
+  const cIvl = ivlFacilityCode(territory, false, false);
+  if(cIvl){
+    rows.push({code:cIvl,         desc:`IVL only — facility C-code (replaces CPT base + add-on on UB-04)`});
+    rows.push({code:ivlFacilityCode(territory,true,false),  desc:`IVL + stent — facility C-code`});
+    rows.push({code:ivlFacilityCode(territory,false,true),  desc:`IVL + atherectomy — facility C-code`});
+    rows.push({code:ivlFacilityCode(territory,true,true),   desc:`IVL + stent + atherectomy — facility C-code`});
   }
   if(terr.atherNote){
     rows.push({code:'⚠', desc:terr.atherNote});
@@ -4707,17 +4715,32 @@ function computeLECodesForLookup(vessel){
 
   const codes = [];
 
-  // IVL add-on (pro mode only — lookup is always pro reference)
-  if(vessel.lithotripsy && terr.ivl){
-    codes.push({
-      code:`+${terr.ivl.code}${sideTag}`,
-      desc:`Intravascular lithotripsy add-on — ${vessel.vessel} (${terr.label})`,
-    });
-    if(vessel.stent){
-      // IVL + stent → also show the stent code
+  // IVL — show both pro (CPT add-on) and facility (C-code) since lookup is billing-mode-agnostic
+  if(vessel.lithotripsy){
+    const hasStent = vessel.stent;
+    const hasAth = vessel.atherectomy;
+    // Pro: CPT add-on
+    if(terr.ivl){
+      codes.push({
+        code:`+${terr.ivl.code}${sideTag}`,
+        desc:`IVL add-on (pro/physician) — ${vessel.vessel} (${terr.label})`,
+      });
+    } else {
+      codes.push({code:'⚠', desc:`No CPT IVL add-on for ${terr.label} territory — use facility C-code only`});
+    }
+    // Facility: C-code
+    const cCode = ivlFacilityCode(vessel.territory, hasStent, hasAth);
+    if(cCode){
+      codes.push({
+        code: cCode,
+        desc: `IVL${hasStent?' + stent':''}${hasAth?' + atherectomy':''} — facility C-code (replaces CPT base + add-on on UB-04 claim)`,
+      });
+    }
+    // Also show the stent base code if stent + IVL
+    if(hasStent){
       const stentLookup = lookupTerritoryCode(vessel.territory,'stent',vessel.lesion||'straightforward',0);
       if(stentLookup.status==='ok'){
-        codes.unshift({code:stentLookup.code+sideTag, desc:`Stent — ${vessel.vessel}, ${vessel.lesion||'straightforward'} (includes angioplasty in same vessel)`});
+        codes.unshift({code:stentLookup.code+sideTag, desc:`Stent — ${vessel.vessel}, ${vessel.lesion||'straightforward'} (pro; use C-code above for facility instead)`});
       }
     }
     return codes;
