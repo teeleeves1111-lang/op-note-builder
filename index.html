@@ -249,6 +249,21 @@
     .row3{grid-template-columns:1fr 1fr;}
     .proc-bar{gap:8px;}
   }
+/* ---- Lookup typeahead dropdown ---- */
+.lookup-wrap{position:relative;}
+.lookup-suggestions{
+  position:absolute;top:100%;left:0;right:0;z-index:20;
+  background:var(--card);border:1px solid var(--line);border-top:none;
+  border-radius:0 0 4px 4px;box-shadow:var(--shadow);
+  max-height:240px;overflow-y:auto;
+}
+.lookup-suggestion{
+  padding:9px 12px;font-size:13px;color:var(--ink);cursor:pointer;
+  border-bottom:1px solid var(--line);
+}
+.lookup-suggestion:last-child{border-bottom:none;}
+.lookup-suggestion:hover,.lookup-suggestion.active{background:var(--accent-soft);}
+.lookup-suggestion .lk-cat{font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em;margin-left:6px;}
 </style>
 </head>
 <body>
@@ -263,6 +278,7 @@
   <div class="tabs">
     <div class="tab active" data-tab="coding">Endovascular Coding</div>
     <div class="tab" data-tab="notegen">Generate LE Angio Note</div>
+    <div class="tab" data-tab="lookup">Code Lookup</div>
   </div>
 
   <div class="content-wrap">
@@ -400,6 +416,25 @@
       <div class="toolbar">
         <button id="ngCopyCodesBtn" class="secondary small">Copy code list</button>
       </div>
+    </div>
+
+  </div>
+
+  <!-- ===================== CODE LOOKUP ===================== -->
+
+  <div class="panel" id="panel-lookup">
+
+    <div class="card">
+      <h2>Code Lookup <span style="font-weight:400;color:var(--ink-soft);font-size:11px;">— quick reference, not tied to a patient case</span></h2>
+      <p style="margin:0 0 10px;font-size:12px;color:var(--ink-soft);">Enter a single procedure or vessel — e.g. <em>right SFA stent occlusion</em>, <em>left iliac vein stent</em>, <em>subclavian artery stent</em>, <em>renal artery diagnostic angiogram</em>, <em>IVC filter removal</em>, <em>permacath insertion</em>.</p>
+      <div class="lookup-wrap">
+        <input type="text" id="lookupInput" placeholder="Type a procedure or vessel name..." autocomplete="off">
+        <div id="lookupSuggestions" class="lookup-suggestions" style="display:none;"></div>
+      </div>
+      <div class="toolbar">
+        <button id="lookupBtn">Look up code</button>
+      </div>
+      <div id="lookupResult" style="margin-top:14px;"></div>
     </div>
 
   </div>
@@ -2006,14 +2041,21 @@ function parseRenalText(text) {
   det.smaStent=false;    det.smaPta=false;
   det.imaStent=false;    det.imaPta=false;
 
-  text.split(/[,;]+/).forEach(cl=>{
+  // Split on commas/semicolons AND sentence-ending periods/newlines — numbered-list
+  // op notes (e.g. "1. Right femoral access\n2. ...\n3. Left renal artery stent")
+  // have no commas between items, so without this a side word describing an access
+  // site in one list item (e.g. "Right femoral artery cannulation") would bleed
+  // into an unrelated renal-artery clause later in the same blob.
+  text.split(/[,;]+|\.\s+|\n+/).forEach(cl=>{
     const c = cl.toLowerCase().trim();
     if(!/renal|sma|celiac|ima/.test(c)) return;
-    // Side detection: full words + two-letter (lt/rt) + single-letter leading prefix
-    // Single-letter: only when clause-leading or after delimiter to avoid false positives
-    const isL = /\bleft\b|\blt\b/.test(c) || /^l\s/.test(c);
-    const isR = /\bright\b|\brt\b/.test(c) || /^r\s/.test(c);
-    const isB = /\bbilateral\b|\bbilat\b|\bbil\b/.test(c);
+    // Side detection: require the side word to be near "renal" specifically
+    // (within ~20 chars either direction) rather than anywhere in the clause —
+    // prevents an unrelated "right"/"left" elsewhere in the same sentence
+    // (e.g. an access-site mention) from being misread as the renal artery's side.
+    const isL = /left.{0,20}renal|renal.{0,20}left|\blt\s*renal|renal.{0,5}lt\b|^l\s+renal/.test(c);
+    const isR = /right.{0,20}renal|renal.{0,20}right|\brt\s*renal|renal.{0,5}rt\b|^r\s+renal/.test(c);
+    const isB = /bilateral.{0,20}renal|renal.{0,20}bilateral|\bbilat\b.{0,20}renal|renal.{0,20}\bbilat\b|^bil\s+renal/.test(c);
     const hasS = /\bstents?\b|stented|stenting|recanali[sz]/.test(c) && !/prior stent|stent in place/.test(c);
     const hasP = /angioplasty|\bpta\b|balloon|plasty/.test(c);
     // Only flag as diagnostic-angio when the word "angio" explicitly appears
@@ -4423,6 +4465,336 @@ document.getElementById('copyCodesBtn')?.addEventListener('click',()=>{
   if(!items.length) return;
   navigator.clipboard.writeText(Array.from(items).map(el=>el.textContent).join('\n')).catch(()=>{});
 });
+
+// ========== CODE LOOKUP (read-only reference — reuses existing parsers/builders,
+// no coding logic duplicated. Covers Fistula / Venous / Renal via their existing
+// det -> build pipelines, plus a small hardcoded table for office procedures that
+// the main engine doesn't parse (tunneled lines, ports, pseudoaneurysm injections).
+// LE is intentionally NOT run here — its code output is tied to vessel-card UI
+// state (laterality, complexity toggles) that doesn't reduce to a single det object;
+// single-vessel LE queries work fine typed directly into the main LE tab. ==========
+
+const LOOKUP_OFFICE_PROCS = [
+  { test:/\b(hickman|permacath|perma-?cath|\bpc\b)\b.*\b(pull|remov|d\/?c|out|explant)/i,
+    or:/\b(pull|remov|d\/?c|out|explant)\b.*\b(hickman|permacath|perma-?cath|\bpc\b)/i,
+    codes:[{code:'36589',desc:'Removal of tunneled central venous catheter (Hickman/Permacath), without subcutaneous port'}] },
+  { test:/\b(hickman|permacath|perma-?cath|\bpc\b)\b/i,
+    codes:[{code:'36558',desc:'Insertion of tunneled central venous catheter (Hickman/Permacath), without subcutaneous port, age ≥5 — add image guidance (76937 US access, 77001 fluoro) if performed and documented'}] },
+  { test:/\b(port-?a-?cath|implantable port|\bport\b)\b.*\b(pull|remov|d\/?c|out|explant)/i,
+    codes:[{code:'36590',desc:'Removal of implanted subcutaneous port/reservoir, central venous'}] },
+  { test:/\b(port-?a-?cath|implantable port|\bport\b)\b/i,
+    codes:[{code:'36561',desc:'Insertion of tunneled central venous catheter with subcutaneous port, age ≥5 — add image guidance (76937 US access, 77001 fluoro) if performed and documented'}] },
+  { test:/\bpicc\b.*\b(pull|remov|d\/?c|out)/i,
+    codes:[{code:'36589',desc:'Removal of tunneled/PICC central venous catheter without port (PICC removal billed under same family)'}] },
+  { test:/\bpicc\b/i,
+    codes:[{code:'36569',desc:'Insertion of PICC, without subcutaneous port, age ≥5'}] },
+  { test:/pseudoaneurysm.*inject|inject.*pseudoaneurysm|thrombin inject/i,
+    codes:[{code:'76942',desc:'Ultrasound guidance for needle placement (imaging supervision and interpretation)'},
+           {code:'36002',desc:'Injection procedure for extremity venography or other vascular injection — used here for thrombin/pseudoaneurysm injection'}] },
+];
+
+// Relevance gates — the territory parsers (fistula/venous/renal) are designed to
+// always return a base/default code for their own tab, even on irrelevant input
+// (e.g. parseFistuloText('renal artery stent') silently returns 36901 diagnostic
+// fistulogram). That's fine inside the main app where the user already picked a
+// tab, but it makes a cross-territory lookup match everything. These gates require
+// at least one territory-specific keyword before that parser is even tried.
+const LOOKUP_FISTULA_RE = /\b(avf|avg|fistul|graft|dialysis access|declot|thrombectom.*fistula|brachial|cephalic|basilic|anastomos|subclavian)\b/i;
+const LOOKUP_VENOUS_RE = /\biliac vein|\bivc\b|vena cava|venous stent|venogram|venoplasty|filter (placement|insertion|retrieval|removal)|deep vein|dvt/i;
+const LOOKUP_RENAL_RE = /\brenal\b|\bceliac\b|\bsma\b|\bmesenteric\b|\bvisceral\b|\bhepatic artery|\bsplenic artery/i;
+
+// Selective catheterization — standalone reference table. These codes are billed
+// by ORDER of selectivity from the aortic origin (1st/2nd/3rd order), and the
+// correct family depends on which arterial tree the catheter was advanced into.
+// This is intentionally separate from LOOKUP_OFFICE_PROCS so a bare query like
+// "selective" or "selective catheterization" returns the index of families
+// below rather than nothing.
+const LOOKUP_CATH_FAMILIES = [
+  { label:'Renal / visceral artery (abdominal aorta branch)',
+    rows:[
+      {code:'36251',desc:'Selective catheterization, renal artery, unilateral, 1st order — includes angiography'},
+      {code:'36252',desc:'Selective catheterization, renal artery, unilateral, 2nd order or higher (e.g. branch renal artery) — includes angiography'},
+      {code:'36253',desc:'Selective catheterization, renal artery, bilateral, 1st order — includes angiography'},
+      {code:'36254',desc:'Selective catheterization, renal artery, bilateral, 2nd order or higher — includes angiography'},
+      {code:'36245',desc:'Selective catheterization, 1st order abdominal visceral branch (celiac, SMA, or IMA) — each vessel separately billable as its own vascular family'},
+      {code:'36246',desc:'Selective catheterization, 2nd order abdominal visceral branch (e.g. hepatic, splenic, gastroduodenal off celiac)'},
+      {code:'36247',desc:'Selective catheterization, 3rd order or higher abdominal visceral branch'},
+    ]},
+  { label:'Lower extremity (iliac / femoral / tibial)',
+    rows:[
+      {code:'36245',desc:'Selective catheterization, 1st order lower extremity branch — common iliac artery'},
+      {code:'36246',desc:'Selective catheterization, 2nd order lower extremity branch — external iliac / common femoral artery'},
+      {code:'36247',desc:'Selective catheterization, 3rd order or higher lower extremity branch — SFA, profunda, or beyond (popliteal, tibial)'},
+    ]},
+  { label:'Upper extremity / brachiocephalic (subclavian, axillary, brachial)',
+    rows:[
+      {code:'36215',desc:'Selective catheterization, 1st order thoracic/brachiocephalic branch — e.g. innominate, subclavian, carotid'},
+      {code:'36216',desc:'Selective catheterization, 2nd order thoracic/brachiocephalic branch — e.g. axillary, vertebral'},
+      {code:'36217',desc:'Selective catheterization, 3rd order or higher thoracic/brachiocephalic branch — e.g. brachial and beyond'},
+    ]},
+  { label:'Venous (IVC / iliac vein access)',
+    rows:[
+      {code:'36010',desc:'Catheter placement, venous, first order (IVC or iliac vein) — used for venogram or venous stent access'},
+      {code:'36011',desc:'Catheter placement, venous, second order, selective (e.g. renal vein, hepatic vein)'},
+      {code:'36012',desc:'Catheter placement, venous, third order or higher, selective'},
+    ]},
+];
+
+function lookupCathFamilies(text){
+  const low = text.toLowerCase();
+  if(!/\bselective\b|\bcatheteriz|\bcath\b(?!eter insert|eter remov)|\b1st order|\b2nd order|\b3rd order|first order|second order|third order/.test(low)) return null;
+  // If a specific territory keyword is present, narrow to just that family;
+  // otherwise (bare "selective" / "selective catheterization") show all of them
+  // as an index so the person can see every option at a glance.
+  if(LOOKUP_RENAL_RE.test(low)) return [LOOKUP_CATH_FAMILIES[0]];
+  if(/\bsfa\b|popliteal|tibial|\biliac\b(?!\s+vein)|femoral/.test(low)) return [LOOKUP_CATH_FAMILIES[1]];
+  if(/subclavian|axillary|brachial|innominate|carotid|vertebral/.test(low)) return [LOOKUP_CATH_FAMILIES[2]];
+  if(/\biliac vein|\bivc\b|venous|hepatic vein|renal vein/.test(low)) return [LOOKUP_CATH_FAMILIES[3]];
+  return LOOKUP_CATH_FAMILIES;
+}
+
+function lookupOfficeProcs(text){
+  const low = text.toLowerCase();
+  for(const entry of LOOKUP_OFFICE_PROCS){
+    if(entry.test.test(low) || (entry.or && entry.or.test(low))){
+      return entry.codes;
+    }
+  }
+  return null;
+}
+
+function renderLookupCodeList(title, codes, note){
+  let html = `<div class="card" style="margin-top:10px;"><h2 style="font-size:14px;">${title}</h2>`;
+  if(note) html += `<p style="margin:0 0 8px;font-size:12px;color:var(--ink-soft);">${note}</p>`;
+  if(codes && codes.length){
+    html += `<div class="code-list">`;
+    codes.forEach(c=>{
+      html += `<div class="code-item"><div class="code-main"><span class="code">${c.code}</span><span class="desc">${c.desc}</span></div></div>`;
+    });
+    html += `</div>`;
+  } else if(!note){
+    html += `<p style="margin:0;font-size:12px;color:var(--ink-soft);">No code determined yet.</p>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+function performLookup(){
+  const raw = document.getElementById('lookupInput').value.trim();
+  const out = document.getElementById('lookupResult');
+  if(!raw){
+    out.innerHTML = '';
+    return;
+  }
+
+  let html = '';
+  let anyMatch = false;
+
+  // 1. Office procedures (hardcoded table — fastest, most specific check first)
+  const officeCodes = lookupOfficeProcs(raw);
+  if(officeCodes){
+    html += renderLookupCodeList('Office procedure', officeCodes);
+    anyMatch = true;
+  }
+
+  // 1.5. Selective catheterization — standalone reference (bare "selective" or
+  // "selective catheterization" shows the index of all families; a territory
+  // keyword present narrows to just that one)
+  const cathFamilies = lookupCathFamilies(raw);
+  if(cathFamilies){
+    cathFamilies.forEach(fam=>{
+      html += renderLookupCodeList(fam.label, fam.rows);
+    });
+    anyMatch = true;
+  }
+
+  // 2. Fistula — only if dialysis-access vocabulary is present
+  if(LOOKUP_FISTULA_RE.test(raw)){
+    try {
+      const det = parseFistuloText(raw);
+      const result = buildFistuloCodes(det, 'pro');
+      const pending = buildPendingForProc(det, 'fistula');
+      if((result.codes && result.codes.length) || pending.length){
+        const note = pending.length ? '⏳ ' + pending.map(p=>p.text).join(' ') : null;
+        html += renderLookupCodeList('Fistulogram / dialysis access', result.codes||[], note);
+        anyMatch = true;
+      }
+    } catch(e){}
+  }
+
+  // 3. Venous — only if venous vocabulary is present
+  if(LOOKUP_VENOUS_RE.test(raw)){
+    try {
+      const det = parseVenousText(raw);
+      const result = buildVenousCodes(det, 'pro');
+      const pending = buildPendingForProc(det, 'venous');
+      if((result.codes && result.codes.length) || pending.length){
+        const note = pending.length ? '⏳ ' + pending.map(p=>p.text).join(' ') : null;
+        html += renderLookupCodeList('Venous', result.codes||[], note);
+        anyMatch = true;
+      }
+    } catch(e){}
+  }
+
+  // 4. Renal/Visceral — only if renal/visceral vocabulary is present
+  if(LOOKUP_RENAL_RE.test(raw)){
+    try {
+      const det = parseRenalText(raw);
+      const result = buildRenalCodes(det, 'pro');
+      const pending = buildPendingForProc(det, 'renal');
+      if((result.codes && result.codes.length) || pending.length){
+        const note = pending.length ? '⏳ ' + pending.map(p=>p.text).join(' ') : null;
+        html += renderLookupCodeList('Renal / Visceral', result.codes||[], note);
+        anyMatch = true;
+      }
+    } catch(e){}
+  }
+
+  if(!anyMatch){
+    html = `<div class="card" style="margin-top:10px;border-color:var(--pending);">
+      <p style="margin:0;font-size:13px;">Couldn't recognize a procedure or vessel in that — try something like:</p>
+      <ul style="margin:8px 0 0;padding-left:18px;font-size:12px;color:var(--ink-soft);line-height:1.6;">
+        <li>right SFA stent occlusion</li>
+        <li>left iliac vein stent</li>
+        <li>subclavian artery stent</li>
+        <li>renal artery diagnostic angiogram</li>
+        <li>IVC filter removal</li>
+        <li>permacath insertion</li>
+        <li>port-a-cath removal</li>
+      </ul>
+      <p style="margin:10px 0 0;font-size:12px;color:var(--ink-soft);">For Lower Extremity vessels (SFA, popliteal, tibial, iliac angioplasty/stent), use the main <b>Endovascular Coding</b> tab instead — it's built for that.</p>
+    </div>`;
+  }
+
+  out.innerHTML = html;
+}
+
+document.getElementById('lookupBtn')?.addEventListener('click', performLookup);
+
+// ========== LOOKUP TYPEAHEAD ==========
+// Curated full-phrase suggestions (not bare vessel names) so a single tap
+// fills the box with something that actually resolves to a code. Grouped by
+// the same categories the lookup itself checks against.
+const LOOKUP_SUGGESTIONS = [
+  // Fistula / dialysis access
+  {text:'avf fistulogram stent', cat:'Fistula'},
+  {text:'avf fistulogram thrombectomy', cat:'Fistula'},
+  {text:'avg fistulogram angioplasty', cat:'Fistula'},
+  {text:'subclavian artery stent', cat:'Fistula'},
+  {text:'subclavian vein stent', cat:'Fistula'},
+  {text:'brachial artery stent', cat:'Fistula'},
+  {text:'cephalic arch stent', cat:'Fistula'},
+  // Venous
+  {text:'left iliac vein stent', cat:'Venous'},
+  {text:'right iliac vein stent', cat:'Venous'},
+  {text:'bilateral iliac vein stents', cat:'Venous'},
+  {text:'ivc filter insertion', cat:'Venous'},
+  {text:'ivc filter removal', cat:'Venous'},
+  {text:'venogram diagnostic', cat:'Venous'},
+  // Renal / Visceral
+  {text:'renal artery stent', cat:'Renal'},
+  {text:'renal artery angioplasty', cat:'Renal'},
+  {text:'renal artery diagnostic angiogram', cat:'Renal'},
+  {text:'celiac artery stent', cat:'Renal'},
+  {text:'sma stent', cat:'Renal'},
+  {text:'bilateral renal artery stents', cat:'Renal'},
+  // Office procedures
+  {text:'permacath insertion', cat:'Office'},
+  {text:'permacath removal', cat:'Office'},
+  {text:'pc pull', cat:'Office'},
+  {text:'hickman insertion', cat:'Office'},
+  {text:'hickman removal', cat:'Office'},
+  {text:'port-a-cath insertion', cat:'Office'},
+  {text:'port-a-cath removal', cat:'Office'},
+  {text:'picc insertion', cat:'Office'},
+  {text:'pseudoaneurysm thrombin injection', cat:'Office'},
+  // Selective catheterization
+  {text:'selective catheterization', cat:'Cath (all families)'},
+  {text:'selective catheterization renal artery', cat:'Cath'},
+  {text:'selective catheterization sma', cat:'Cath'},
+  {text:'selective catheterization iliac', cat:'Cath'},
+  {text:'selective catheterization subclavian', cat:'Cath'},
+  {text:'selective catheterization iliac vein', cat:'Cath'},
+];
+
+(function(){
+  const input = document.getElementById('lookupInput');
+  const box = document.getElementById('lookupSuggestions');
+  if(!input || !box) return;
+  let activeIdx = -1;
+  let currentMatches = [];
+
+  function renderSuggestions(matches){
+    currentMatches = matches;
+    activeIdx = -1;
+    if(!matches.length){ box.style.display = 'none'; box.innerHTML = ''; return; }
+    box.innerHTML = matches.map((m,i)=>
+      `<div class="lookup-suggestion" data-idx="${i}">${m.text}<span class="lk-cat">${m.cat}</span></div>`
+    ).join('');
+    box.style.display = '';
+  }
+
+  function pick(idx){
+    const m = currentMatches[idx];
+    if(!m) return;
+    input.value = m.text;
+    box.style.display = 'none';
+    performLookup();
+  }
+
+  input.addEventListener('input', ()=>{
+    const q = input.value.trim().toLowerCase();
+    if(!q){ renderSuggestions([]); return; }
+    const matches = LOOKUP_SUGGESTIONS.filter(s => s.text.toLowerCase().includes(q)).slice(0,7);
+    renderSuggestions(matches);
+  });
+
+  input.addEventListener('keydown', e=>{
+    if(e.key === 'Enter' && !e.shiftKey){
+      e.preventDefault();
+      if(box.style.display !== 'none' && activeIdx >= 0){
+        pick(activeIdx);
+      } else {
+        box.style.display = 'none';
+        performLookup();
+      }
+      return;
+    }
+    if(box.style.display === 'none') return;
+    if(e.key === 'ArrowDown'){
+      e.preventDefault();
+      activeIdx = Math.min(activeIdx+1, currentMatches.length-1);
+      [...box.children].forEach((c,i)=>c.classList.toggle('active', i===activeIdx));
+    } else if(e.key === 'ArrowUp'){
+      e.preventDefault();
+      activeIdx = Math.max(activeIdx-1, 0);
+      [...box.children].forEach((c,i)=>c.classList.toggle('active', i===activeIdx));
+    } else if(e.key === 'Escape'){
+      box.style.display = 'none';
+    }
+  });
+
+  box.addEventListener('click', e=>{
+    const row = e.target.closest('.lookup-suggestion');
+    if(!row) return;
+    pick(parseInt(row.dataset.idx, 10));
+  });
+
+  // Close dropdown when tapping elsewhere
+  document.addEventListener('click', e=>{
+    if(e.target !== input && !box.contains(e.target)){
+      box.style.display = 'none';
+    }
+  });
+
+  input.addEventListener('focus', ()=>{
+    if(input.value.trim()){
+      const q = input.value.trim().toLowerCase();
+      const matches = LOOKUP_SUGGESTIONS.filter(s => s.text.toLowerCase().includes(q)).slice(0,7);
+      renderSuggestions(matches);
+    }
+  });
+})();
 
 </script>
 
