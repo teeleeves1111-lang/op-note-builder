@@ -849,7 +849,13 @@ const VESSEL_MAP = [
   [/\bposterior tibial\b/, 'tibioperoneal', 'Posterior tibial'],
   [/\bperoneal\b/, 'tibioperoneal', 'Peroneal'],
   [/dorsalis pedis/, 'inframalleolar', 'Dorsalis pedis'],
-  [/\bplantar\b/, 'inframalleolar', 'Plantar'],
+  [/\bplantar\b(?!\s+access)/, 'inframalleolar', 'Plantar'],
+  [/medial plantar/, 'inframalleolar', 'Medial plantar'],
+  [/lateral plantar/, 'inframalleolar', 'Lateral plantar'],
+  [/medial tarsal/, 'inframalleolar', 'Medial tarsal'],
+  [/lateral tarsal/, 'inframalleolar', 'Lateral tarsal'],
+  [/\btarsal\b/, 'inframalleolar', 'Tarsal'],
+  [/\bpedal\b(?!\s+access)/, 'inframalleolar', 'Dorsalis pedis'],
   // Fallback for casual/shorthand speech that names a territory without the
   // specific vessel (e.g. "tibial angioplasty" instead of "posterior tibial").
   // Lookbehind excludes cases already caught by the specific patterns above,
@@ -4516,7 +4522,7 @@ const LOOKUP_BUNDLES = [
     codes:[
       {code:'36589', desc:'Removal of tunneled central venous catheter, without subcutaneous port'},
     ]},
-  { test:/\b(hickman|permacath|perma-?cath|\bpc\b)\b/i,
+  { test:/\b(hickman|permacath|perma-?cath|\bpc\b)\b(?!.*\bexchange\b)/i,
     label:'Permacath / Hickman insertion',
     codes:[
       {code:'36558', desc:'Insertion of tunneled central venous catheter, without subcutaneous port, age \u226515'},
@@ -4646,17 +4652,182 @@ const LOOKUP_BUNDLES = [
     ]},
 
   // ── SELECTIVE CATH IVC (diagnostic / balloon occlusion) ───────────────
-  // Distinct from IVC filter \u2014 catheter placement for venacavagram or balloon occlusion,
+  // Distinct from IVC filter — catheter placement for venacavagram or balloon occlusion,
   // NOT filter work (where 36010/75825 are bundled and not separately billable)
   { test:/selective.*cath.*ivc|cath.*ivc.*selective|venacavagram|vena cavagram|ivc.*venogram|balloon.occlusion.*ivc/i,
     label:'Selective catheterization IVC (diagnostic / balloon occlusion)',
     codes:[
       {code:'36010',  desc:'Catheter placement into inferior vena cava'},
-      {code:'75825',  desc:'Venacavagram, inferior, with serialography, radiological S&I \u2014 separately billable for diagnostic IVC imaging (distinct from IVC filter placement where this is bundled)'},
-      {code:'76937',  desc:'Ultrasound guidance for vascular access \u2014 only if real-time US used and permanent image saved', conditional:true},
+      {code:'75825',  desc:'Venacavagram, inferior, with serialography, radiological S&I — separately billable for diagnostic IVC imaging (distinct from IVC filter placement where this is bundled)'},
+      {code:'76937',  desc:'Ultrasound guidance for vascular access — only if real-time US used and permanent image saved', conditional:true},
+    ]},
+
+  // ── PEDAL ACCESS (retrograde foot access for through-and-through) ─────
+  // Distinct from inframalleolar intervention — "pedal access" means retrograde
+  // access at the foot (DP, PT, or AT) to facilitate through-and-through crossing,
+  // not treatment of an inframalleolar vessel. Billed as 36140 per this practice's
+  // established exception; verify NCCI PTP edit status before submitting.
+  { test:/pedal access|retrograde.*pedal|pedal.*retrograde|foot access|retrograde.*foot/i,
+    label:'Pedal / retrograde foot access (through-and-through technique)',
+    codes:[
+      {code:'36140', desc:'Introduction of needle or intracatheter, extremity artery — retrograde pedal/tibial access (DP, PT, or AT) for through-and-through technique. NOTE: subject to NCCI PTP edits; verify separately billable at your MAC before submitting'},
+    ]},
+
+  // ── SNARE / INTRAVASCULAR FOREIGN BODY RETRIEVAL ─────────────────────
+  // 37197 is fully bundled (all-inclusive: imaging guidance + S&I included).
+  // Do NOT separately bill 76937 or 75961 — bundled in.
+  // Do NOT add IVUS (37252) — explicitly excluded per CPT instructions.
+  { test:/\bsnare\b|\bforeign body\b|intravascular foreign|fractured cath|broken cath|broken wire|fractured wire|embolized.*cath|retained.*cath|lost.*wire/i,
+    label:'Snare / intravascular foreign body retrieval',
+    codes:[
+      {code:'37197', desc:'Transcatheter retrieval, percutaneous, of intravascular foreign body (e.g. fractured catheter, broken wire, embolized device) — ALL-INCLUSIVE: includes radiological S&I and imaging guidance (US + fluoroscopy). Do NOT separately bill 76937 or 75961. Do NOT add IVUS (37252) — explicitly excluded.'},
+    ]},
+
+  // ── AORTOGRAM / ABDOMINAL AORTOGRAPHY ────────────────────────────────
+  { test:/\baortogram\b|\baortography\b|\babdominal aorta\b/i,
+    label:'Abdominal aortogram',
+    codes:[
+      {code:'36200', desc:'Introduction of catheter, aorta — catheter placement for aortography'},
+      {code:'75625', desc:'Aortography, abdominal, by serialography — includes bilateral iliofemoral runoff. Do NOT also bill 75726 when aorta is injected during visceral angio (included)'},
+      {code:'75630', desc:'Aortography, abdominal, plus bilateral iliofemoral lower extremity — use instead of 75625 when bilateral LE runoff specifically performed and documented'},
+      {code:'76937', desc:'Ultrasound guidance for vascular access', conditional:true},
+    ]},
+
+  // ── LOWER EXTREMITY DIAGNOSTIC ANGIOGRAM ─────────────────────────────
+  { test:/(?<!upper )(?:lower )?extremity.*angio|le.*angio|(?:lower extremity|leg) angiogram|runoff.*angio|angio.*runoff|\bleg angio\b/i,
+    label:'Lower extremity diagnostic angiogram',
+    codes:[
+      {code:'75710', desc:'Angiography, extremity, unilateral — add -RT or -LT laterality; add -26 pro component; add -XU if no adequate prior study'},
+      {code:'75716', desc:'Angiography, extremity, bilateral — use when both legs imaged in same session'},
+      {code:'36140', desc:'Introduction of needle or catheter, extremity artery — catheter placement for angiography via separate extremity access site', conditional:true},
+      {code:'76937', desc:'Ultrasound guidance for vascular access', conditional:true},
+    ]},
+
+  // ── UPPER EXTREMITY DIAGNOSTIC ANGIOGRAM ─────────────────────────────
+  { test:/upper extremity.*angio|arm.*angio|brachial.*angio|radial.*angio|ulnar.*angio/i,
+    label:'Upper extremity diagnostic angiogram',
+    codes:[
+      {code:'75710', desc:'Angiography, extremity, unilateral — add -RT or -LT laterality; add -26 pro component; add -XU if no adequate prior study; requires full visualization subclavian to hand with distinct clinical indication (e.g. steal syndrome)'},
+      {code:'36215', desc:'Selective catheterization, 1st order brachiocephalic branch — for subclavian/axillary access to perform upper extremity angiogram'},
+      {code:'76937', desc:'Ultrasound guidance for vascular access', conditional:true},
+    ]},
+
+  // ── US-GUIDED ACCESS ─────────────────────────────────────────────────
+  { test:/\b(us|ultrasound).{0,10}(guided|guidance).{0,10}access|access.{0,10}(us|ultrasound).{0,10}guid|76937/i,
+    label:'Ultrasound-guided vascular access',
+    codes:[
+      {code:'76937', desc:'Ultrasound guidance for vascular access device placement — requires real-time imaging, permanent recorded image, AND documented image storage. Not separately billable when included in a bundled code (e.g. 37191, 37193, 37197)'},
+    ]},
+
+  // ── SEDATION ─────────────────────────────────────────────────────────
+  { test:/\bsedation\b|\b99152\b|\b99153\b/i,
+    label:'Moderate sedation — same physician',
+    codes:[
+      {code:'99152', desc:'Moderate sedation, same physician, initial 15 minutes intraservice time — requires documented pre-sedation assessment, intraservice monitoring, and post-sedation recovery'},
+      {code:'+99153', desc:'Each additional 15 minutes intraservice sedation time — add for each additional 15-min block (midpoint rule: ≥8 min remainder counts as full unit). PRO/physician billing only — suppressed on facility claims', conditional:true},
+    ]},
+
+  // ── IVUS STANDALONE REFERENCE ────────────────────────────────────────
+  { test:/\bivus\b|intravascular ultrasound/i,
+    label:'IVUS — intravascular ultrasound',
+    codes:[
+      {code:'37252', desc:'IVUS, initial vessel — requires saved permanent image with documented findings. Cannot be reported with IVC filter placement/removal/repositioning or intravascular foreign body retrieval (37197)'},
+      {code:'+37253', desc:'IVUS, each additional vessel in same session — add-on to 37252', conditional:true},
+    ]},
+
+  // ── EMBOLIZATION ─────────────────────────────────────────────────────
+  { test:/\bemboliz|embolotherapy|\bcoil\b.*emboliz|emboliz.*\bcoil\b/i,
+    label:'Transcatheter embolization',
+    codes:[
+      {code:'37241', desc:'Venous embolization — varicose veins, varicocele, ovarian/pelvic veins, or other venous vessels'},
+      {code:'37242', desc:'Arterial embolization — non-tumoral, non-hemorrhagic (e.g. splenic, hepatic, renal artery embolization for non-oncologic indication)'},
+      {code:'37243', desc:'Embolization for tumors or organ ischemia (e.g. uterine fibroid embolization, chemoembolization, hepatic arterial embolization for tumor)'},
+      {code:'37244', desc:'Embolization for arterial or venous hemorrhage — traumatic or post-procedural bleeding'},
+      {code:'+36909', desc:'Coil embolization — dialysis access permanent occlusion, add-on to primary fistulogram/thrombectomy code (36901-36906)', conditional:true},
+    ]},
+
+  // ── THROMBOLYSIS / CDT ────────────────────────────────────────────────
+  { test:/thrombolysis|thrombolytic|tpa infusion|alteplase|urokinase|\bcdt\b|catheter.*directed.*thrombo|infusion.*thrombo/i,
+    label:'Catheter-directed thrombolysis (CDT)',
+    codes:[
+      {code:'37211', desc:'CDT, arterial or venous — initial treatment day (includes catheter placement, imaging, infusion initiation)'},
+      {code:'37212', desc:'CDT — cessation of thrombolysis including removal of catheter and vessel closure (same day as 37211 if same session)'},
+      {code:'37213', desc:'CDT — subsequent treatment day (continued infusion management, includes imaging)'},
+      {code:'37214', desc:'CDT — cessation of thrombolysis on a subsequent day'},
+      {code:'36014', desc:'Selective catheter placement, pulmonary artery — use for EKOS/CDT access for pulmonary embolism treatment; add -50 modifier for bilateral', conditional:true},
+      {code:'76937', desc:'Ultrasound guidance for vascular access', conditional:true},
+    ]},
+
+  // ── MECHANICAL THROMBECTOMY (NON-FISTULA) ────────────────────────────
+  { test:/mechanical thrombectomy|rheolytic|angiojet|penumbra|thrombectomy.*(?:arterial|venous|iliac|sfa|popliteal)|(?:arterial|venous).*thrombectomy/i,
+    label:'Mechanical thrombectomy — non-dialysis',
+    codes:[
+      {code:'37184', desc:'Primary percutaneous mechanical thrombectomy, arterial or venous — initial vessel (non-coronary, non-intracranial, non-dialysis circuit)'},
+      {code:'+37185', desc:'Primary percutaneous mechanical thrombectomy — each additional vessel within same vascular family', conditional:true},
+      {code:'+37186', desc:'Secondary percutaneous mechanical thrombectomy (e.g. suction, snare basket) — add-on when performed alongside a primary procedure other than thrombectomy', conditional:true},
+    ]},
+
+  // ── FIBRIN SHEATH STRIPPING / PERMACATH EXCHANGE ─────────────────────
+  { test:/fibrin sheath|sheath strip|permacath exchange|catheter exchange|pc exchange|line exchange/i,
+    label:'Fibrin sheath stripping / Permacath exchange',
+    codes:[
+      {code:'36595', desc:'Mechanical removal of pericatheter obstructive material (fibrin sheath stripping) — add -52 if incomplete stripping per your original bundle reference'},
+      {code:'36581', desc:'Replacement of tunneled central venous catheter, through same venous access — exchange over wire; catheter previously placed'},
+      {code:'75827', desc:'Venacavagram, superior, with serialography — for imaging during fibrin sheath/exchange to assess central venous anatomy', conditional:true},
+    ]},
+
+  // ── VEIN ABLATION ────────────────────────────────────────────────────
+  { test:/vein ablation|varicose vein|saphenous.*ablat|ablat.*saphenous|radiofrequency.*vein|laser.*vein|vein.*laser|vein.*rf\b|\bvnus\b|\bclosure.*vein|mechanochem|moca\b/i,
+    label:'Vein ablation — saphenous / varicose',
+    codes:[
+      {code:'36475', desc:'Endovenous ablation, radiofrequency (RF) — great saphenous vein, first vein treated'},
+      {code:'+36476', desc:'Endovenous ablation, RF — each additional vein in same extremity (add-on)', conditional:true},
+      {code:'36478', desc:'Endovenous ablation, laser — great saphenous vein, first vein treated'},
+      {code:'+36479', desc:'Endovenous ablation, laser — each additional vein in same extremity (add-on)', conditional:true},
+      {code:'36482', desc:'Endovenous ablation, mechanochemical (MOCA/ClariVein) — first vein treated'},
+      {code:'+36483', desc:'Endovenous ablation, mechanochemical — each additional vein in same extremity (add-on)', conditional:true},
+      {code:'76937', desc:'Ultrasound guidance for vascular access', conditional:true},
+    ]},
+
+  // ── SURGICAL EMBOLECTOMY / THROMBECTOMY ──────────────────────────────
+  { test:/surgical.*(?:embolectomy|thrombectomy)|(?:embolectomy|thrombectomy).*surgical|open.*thrombectomy|femoral embolectomy|brachial embolectomy/i,
+    label:'Open surgical embolectomy / thrombectomy',
+    codes:[
+      {code:'34201', desc:'Embolectomy or thrombectomy, with or without catheter, femoral and/or popliteal artery — open surgical approach'},
+      {code:'34203', desc:'Embolectomy or thrombectomy, with or without catheter, popliteal-tibio-peroneal artery — open surgical approach'},
+      {code:'34101', desc:'Embolectomy or thrombectomy, with or without catheter, axillary, brachial, innominate, subclavian artery — open surgical approach'},
+    ]},
+
+  // ── FASCIOTOMY ────────────────────────────────────────────────────────
+  { test:/fasciotomy|compartment syndrome|4.compartment/i,
+    label:'Fasciotomy — compartment syndrome',
+    codes:[
+      {code:'27600', desc:'Decompressive fasciotomy, leg, anterior and/or lateral compartments only'},
+      {code:'27602', desc:'Decompressive fasciotomy, leg, anterior and lateral, and posterior compartment(s) — four-compartment fasciotomy'},
+      {code:'27496', desc:'Decompressive fasciotomy, thigh and/or knee — single compartment'},
+    ]},
+
+  // ── AV ACCESS CREATION (SURGICAL) ────────────────────────────────────
+  { test:/\b(av fistula creation|avf creation|fistula creation|radiocephalic|brachiocephalic fistula|brachiobasilic|av graft|avg creation|graft creation|gortex graft|dialysis access creation)\b/i,
+    label:'AV access creation — surgical',
+    codes:[
+      {code:'36821', desc:'Arteriovenous anastomosis, open — direct, any site (e.g. radiocephalic or brachiocephalic AVF)'},
+      {code:'36825', desc:'Arteriovenous anastomosis, open — with graft, autogenous (saphenous vein)'},
+      {code:'36830', desc:'Arteriovenous anastomosis, open — with graft, non-autogenous (synthetic/PTFE/ePTFE graft)'},
+      {code:'36832', desc:'Revision, open, arteriovenous fistula — without thrombectomy, autogenous or non-autogenous graft'},
+      {code:'36833', desc:'Revision, open, arteriovenous fistula — with thrombectomy, autogenous or non-autogenous graft'},
+    ]},
+
+  // ── FLUOROSCOPY GUIDANCE ──────────────────────────────────────────────
+  { test:/\bfluoroscopy\b|\b76000\b|\b77001\b/i,
+    label:'Fluoroscopy guidance',
+    codes:[
+      {code:'77001', desc:'Fluoroscopic guidance for central venous access device placement — includes fluoroscopy, spot images, permanent recording. Used with permacath/port/PICC insertion codes'},
+      {code:'76000', desc:'Fluoroscopy, up to 1 hour — used for procedures requiring fluoroscopic guidance not otherwise included in a bundled code'},
     ]},
 
 ];
+
 
 // lookupOfficeProcs: legacy name kept so performLookup still calls it;
 // now searches LOOKUP_BUNDLES and returns codes array only (for backward compat)
@@ -4688,7 +4859,7 @@ const LE_TERRITORY_MAP = {
   iliac:         /\biliac\b/i,
   femoropopliteal:/\bsfa\b|\bfemoral\b|\bpopliteal\b|\bfemoropopliteal\b|\bpop\b/i,
   tibioperoneal: /\btibial\b|\bperoneal\b|\bat\b|\bpt\b|\banterior tibial\b|\bposterior tibial\b/i,
-  inframalleolar:/\binframalleolar\b|\bdorsalis pedis\b|\bplantar\b|\bdp\b/i,
+  inframalleolar:/\binframalleolar\b|\bdorsalis pedis\b|\bmedial plantar\b|\blateral plantar\b|\bplantar\b|\bmedial tarsal\b|\blateral tarsal\b|\btarsal\b|\bdp\b|\bpedal\b/i,
 };
 
 function buildLEReferenceTable(territory){
@@ -4904,18 +5075,20 @@ function performLookup(){
   }
 
   // 1.2. Lower extremity — try specific parse first, fall back to reference table.
-  // Runs regardless of bundle match (LE vessels don't overlap with any bundles).
-  const leResult = lookupLEResult(raw);
-  if(leResult){
-    if(leResult.type === 'computed'){
-      html += renderLookupCodeList(leResult.label, leResult.codes,
-        leResult.codes.some(c=>c.code.startsWith('⚠')) ? null :
-        '<span style="font-size:11px;color:var(--ink-soft);">Pro mode · single vessel · add sedation, US guidance, aortogram/angiogram codes separately</span>');
-    } else {
-      // Reference table — use same rows format as cath families
-      html += renderLookupCodeList(leResult.label, leResult.rows);
+  // Suppressed when a bundle already matched (e.g. "pedal access" → 36140 bundle
+  // should not also show the inframalleolar reference table).
+  if(!bundle){
+    const leResult = lookupLEResult(raw);
+    if(leResult){
+      if(leResult.type === 'computed'){
+        html += renderLookupCodeList(leResult.label, leResult.codes,
+          leResult.codes.some(c=>c.code.startsWith('⚠')) ? null :
+          '<span style="font-size:11px;color:var(--ink-soft);">Pro mode · single vessel · add sedation, US guidance, aortogram/angiogram codes separately</span>');
+      } else {
+        html += renderLookupCodeList(leResult.label, leResult.rows);
+      }
+      anyMatch = true;
     }
-    anyMatch = true;
   }
 
   // 1.5. Selective catheterization — standalone reference.
@@ -5042,6 +5215,8 @@ const LOOKUP_SUGGESTIONS = [
   {text:'right at plasty stenosis', cat:'LE'},
   {text:'right pt plasty occlusion', cat:'LE'},
   {text:'right peroneal stent stenosis', cat:'LE'},
+  {text:'snare foreign body retrieval', cat:'Bundle'},
+  {text:'fractured catheter retrieval', cat:'Bundle'},
   // Fistula / dialysis access
   {text:'fistulogram', cat:'Fistula reference'},
   {text:'avf fistulogram stent', cat:'Fistula'},
@@ -5088,6 +5263,31 @@ const LOOKUP_SUGGESTIONS = [
   {text:'selective catheterization subclavian', cat:'Cath'},
   {text:'selective catheterization iliac vein', cat:'Cath'},
   {text:'selective catheterization ivc', cat:'Bundle'},
+  // Additional bundles
+  {text:'aortogram', cat:'Bundle'},
+  {text:'lower extremity angiogram', cat:'Bundle'},
+  {text:'upper extremity angiogram', cat:'Bundle'},
+  {text:'ultrasound guided access', cat:'Bundle'},
+  {text:'sedation', cat:'Bundle'},
+  {text:'ivus', cat:'Bundle'},
+  {text:'embolization arterial', cat:'Bundle'},
+  {text:'embolization venous', cat:'Bundle'},
+  {text:'embolization hemorrhage', cat:'Bundle'},
+  {text:'thrombolysis', cat:'Bundle'},
+  {text:'catheter directed thrombolysis', cat:'Bundle'},
+  {text:'mechanical thrombectomy', cat:'Bundle'},
+  {text:'fibrin sheath stripping', cat:'Bundle'},
+  {text:'permacath exchange', cat:'Bundle'},
+  {text:'vein ablation radiofrequency', cat:'Bundle'},
+  {text:'vein ablation laser', cat:'Bundle'},
+  {text:'vein ablation mechanochemical', cat:'Bundle'},
+  {text:'surgical embolectomy femoral', cat:'Bundle'},
+  {text:'fasciotomy four compartment', cat:'Bundle'},
+  {text:'av fistula creation', cat:'Bundle'},
+  {text:'av graft creation', cat:'Bundle'},
+  {text:'fluoroscopy guidance', cat:'Bundle'},
+  {text:'pedal access', cat:'Bundle'},
+  {text:'retrograde pedal access', cat:'Bundle'},
 ];
 
 (function(){
