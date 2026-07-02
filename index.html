@@ -162,6 +162,8 @@
   button.danger{background:#fff;color:var(--flag);border:1px solid var(--flag);}
   button.listening{background:var(--flag);border-color:var(--flag);color:#fff;animation:dictatePulse 1.3s ease-in-out infinite;}
   @keyframes dictatePulse{0%{opacity:1;}50%{opacity:.6;}100%{opacity:1;}}
+  .sed-confirm-btn{background:var(--accent);border-color:var(--accent);font-size:14px;padding:10px 20px;}
+  .sed-confirm-btn:hover{background:var(--accent-mid);border-color:var(--accent-mid);}
 
   /* ---- Vessel blocks ---- */
   .vessel-block{border:1px solid var(--line);border-radius:4px;padding:14px;margin-bottom:10px;background:#FAFAF8;}
@@ -450,6 +452,7 @@
       </div>
       <div class="toolbar">
         <button id="lookupBtn">Look up code</button>
+        <button id="lookupClearBtn" type="button" style="display:none;">Clear</button>
       </div>
       <div id="lookupResult" style="margin-top:14px;"></div>
     </div>
@@ -1382,41 +1385,16 @@ async function runNormalize(inputId, diffId, resultCardId, statusId, btnId){
 // Shared sedation pending UI — same time-calculator used by all tabs.
 function buildSedationPendingHTML(idPrefix) {
   return `<div class="pending-item" style="flex-direction:column; align-items:stretch;">
-    <div class="ptext"><b>Sedation given?</b></div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:4px;">
-      <span style="font-size:11.5px;">Start</span><input type="time" id="${idPrefix}SedStart">
-      <span style="font-size:11.5px;">End</span><input type="time" id="${idPrefix}SedEnd">
-      <button type="button" id="${idPrefix}SedTimesBtn">Calculate &amp; confirm</button>
-    </div>
+    <div class="ptext"><b>Sedation given?</b> Enter total minutes, then tap Confirm.</div>
     <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-      <span style="font-size:11.5px;">or minutes directly</span>
-      <input type="number" id="${idPrefix}SedMin" min="0" placeholder="minutes" style="width:90px;">
-      <button type="button" id="${idPrefix}SedMinBtn">Confirm</button>
+      <input type="number" id="${idPrefix}SedMin" min="0" placeholder="minutes" style="width:100px;">
+      <button type="button" id="${idPrefix}SedMinBtn" class="sed-confirm-btn">Confirm</button>
       <button type="button" onclick="${idPrefix==='otherSed'?'onOtherSedNone':idPrefix==='ngSed'?'onNgSedNone':'onLeSedNone'}()">No sedation</button>
     </div>
   </div>`;
 }
 function attachSedationHandlers(idPrefix, onMinutes, onNone) {
-  const timesBtn = document.getElementById(idPrefix + 'SedTimesBtn');
   const minInput = document.getElementById(idPrefix + 'SedMin');
-  if(timesBtn){
-    timesBtn.addEventListener('click', ()=>{
-      const startVal = document.getElementById(idPrefix + 'SedStart').value;
-      const endVal   = document.getElementById(idPrefix + 'SedEnd').value;
-      if(startVal && endVal){
-        const [sh, sm] = startVal.split(':').map(Number);
-        const [eh, em] = endVal.split(':').map(Number);
-        let diff = (eh*60+em) - (sh*60+sm);
-        if(diff < 0) diff += 24*60;
-        if(diff > 0 && diff <= 600){ onMinutes(diff); return; }
-      }
-      // Fall back to direct minutes entry if times incomplete or invalid
-      if(minInput && minInput.value.trim() !== ''){
-        const val = parseInt(minInput.value.trim(), 10);
-        if(!isNaN(val) && val >= 0) onMinutes(val);
-      }
-    });
-  }
   if(minInput){
     function commitMin(){
       const raw = minInput.value.trim();
@@ -1425,6 +1403,9 @@ function attachSedationHandlers(idPrefix, onMinutes, onNone) {
       if(!isNaN(val) && val >= 0) onMinutes(val);
     }
     minInput.addEventListener('keydown', e=>{ if(e.key==='Enter') commitMin(); });
+    // Auto-commit on blur too — covers the case where the user types a
+    // number and taps elsewhere instead of pressing Confirm or Enter.
+    minInput.addEventListener('blur', commitMin);
     // Wire the "Confirm minutes" button if present
     const confirmBtn = document.getElementById(idPrefix + 'SedMinBtn');
     if(confirmBtn) confirmBtn.addEventListener('click', commitMin);
@@ -2906,15 +2887,10 @@ function renderPending(){
   if(!sedationMentioned && !caseAnswers.sedationAnswered){
     items.push(`
       <div class="pending-item" style="flex-direction:column; align-items:stretch;">
-        <div class="ptext"><b>Sedation given?</b></div>
+        <div class="ptext"><b>Sedation given?</b> Enter total minutes, then tap Confirm.</div>
         <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-          <span style="font-size:11.5px;">Start</span><input type="time" id="sedStartInput">
-          <span style="font-size:11.5px;">End</span><input type="time" id="sedEndInput">
-          <button id="confirmSedTimesBtn" type="button">Calculate &amp; confirm</button>
-        </div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-          <span style="font-size:11.5px;">or minutes directly</span>
-          <input type="number" id="sedMinInput" min="0" placeholder="minutes">
+          <input type="number" id="sedMinInput" min="0" placeholder="minutes" style="width:100px;">
+          <button type="button" id="confirmSedMinBtn" class="sed-confirm-btn">Confirm</button>
           <button type="button" onclick="onLeSedNone()">No sedation</button>
         </div>
       </div>
@@ -2952,7 +2928,7 @@ function renderPending(){
       renderAll();
     });
   });
-  // Sedation minutes auto-commit on Enter or blur
+  // Sedation minutes auto-commit on Enter, blur, or Confirm button
   const sedMinInput = document.getElementById('sedMinInput');
   if(sedMinInput){
     function commitSed(){
@@ -2962,36 +2938,9 @@ function renderPending(){
       if(!isNaN(val) && val>=0){ caseAnswers.sedationAnswered=true; caseAnswers.sedationMinutes=val; renderAll(); }
     }
     sedMinInput.addEventListener('keydown', e=>{ if(e.key==='Enter') commitSed(); });
-  }
-  // sedMinInput confirm button removed — handled by attachSedationHandlers
-  const sedTimesBtn = document.getElementById('confirmSedTimesBtn');
-  if(sedTimesBtn){
-    sedTimesBtn.addEventListener('click', ()=>{
-      const startVal = document.getElementById('sedStartInput').value;
-      const endVal = document.getElementById('sedEndInput').value;
-      if(startVal && endVal){
-        const [sh, sm] = startVal.split(':').map(Number);
-        const [eh, em] = endVal.split(':').map(Number);
-        let diff = (eh*60+em) - (sh*60+sm);
-        if(diff < 0) diff += 24*60;
-        if(diff > 0 && diff <= 600){
-          caseAnswers.sedationAnswered = true;
-          caseAnswers.sedationMinutes = diff;
-          renderAll();
-          return;
-        }
-      }
-      // Fall back to direct minutes entry if times incomplete or invalid
-      const minEl = document.getElementById('sedMinInput');
-      if(minEl && minEl.value.trim() !== ''){
-        const val = parseInt(minEl.value.trim(), 10);
-        if(!isNaN(val) && val >= 0){
-          caseAnswers.sedationAnswered = true;
-          caseAnswers.sedationMinutes = val;
-          renderAll();
-        }
-      }
-    });
+    sedMinInput.addEventListener('blur', commitSed);
+    const confirmSedMinBtn = document.getElementById('confirmSedMinBtn');
+    if(confirmSedMinBtn) confirmSedMinBtn.addEventListener('click', commitSed);
   }
 }
 
@@ -5297,6 +5246,35 @@ function performLookup(){
 }
 
 document.getElementById('lookupBtn')?.addEventListener('click', performLookup);
+
+// Clear button: reset input, result, and suggestions in one tap
+const lookupClearBtn = document.getElementById('lookupClearBtn');
+const lookupInputEl = document.getElementById('lookupInput');
+const lookupResultEl = document.getElementById('lookupResult');
+const lookupSuggestionsEl = document.getElementById('lookupSuggestions');
+
+function updateLookupClearBtnVisibility(){
+  if(!lookupClearBtn || !lookupInputEl) return;
+  lookupClearBtn.style.display = lookupInputEl.value.trim() ? 'inline-block' : 'none';
+}
+
+lookupClearBtn?.addEventListener('click', function(){
+  lookupInputEl.value = '';
+  lookupResultEl.innerHTML = '';
+  if(lookupSuggestionsEl) lookupSuggestionsEl.style.display = 'none';
+  updateLookupClearBtnVisibility();
+  lookupInputEl.focus();
+});
+
+lookupInputEl?.addEventListener('input', updateLookupClearBtnVisibility);
+
+// Auto-select existing text on focus so tapping back into the field lets
+// the user just start typing to replace it, instead of manually erasing.
+lookupInputEl?.addEventListener('focus', function(){
+  if(this.value) this.select();
+});
+
+updateLookupClearBtnVisibility();
 
 // ========== LOOKUP TYPEAHEAD ==========
 // Curated full-phrase suggestions (not bare vessel names) so a single tap
