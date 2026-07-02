@@ -4826,6 +4826,96 @@ const LOOKUP_BUNDLES = [
       {code:'76000', desc:'Fluoroscopy, up to 1 hour — used for procedures requiring fluoroscopic guidance not otherwise included in a bundled code'},
     ]},
 
+  // ═══════════════════════════════════════════════════════════════════
+  // AORTIC / THORACIC ENDOGRAFT REFERENCE (vascular surgery)
+  // 2026 CPT overhaul: 33884/33889/33891 DELETED. 33880/33881/33883/33886
+  // revised (S&I 75956-75959 bundled in). 33882 NEW (branched/fenestrated
+  // thoracic). Reference only — not tied to the dictation parser.
+  // ═══════════════════════════════════════════════════════════════════
+
+  // ── TEVAR — descending thoracic aortic endograft ──────────────────────
+  { test:/\btevar\b|thoracic endograft|thoracic (?:aortic )?stent graft|descending thoracic aort(?:a|ic)/i,
+    label:'TEVAR — thoracic endovascular aortic repair (2026)',
+    codes:[
+      {code:'33880', desc:'Endograft deployment for thoracic aortic pathology (aneurysm, dissection, ulcer, hematoma, rupture) — main body COVERS left subclavian artery. Includes all extensions placed in same session and all imaging S&I (75956-59 deleted/bundled)'},
+      {code:'33881', desc:'Same as 33880 but main body does NOT cover left subclavian artery. Use this if LSA origin remains patent/uncovered'},
+      {code:'33883', desc:'Delayed placement of proximal extension prosthesis(es) — separate session after initial TEVAR; covers aneurysm, pseudoaneurysm, dissection, endoleak, or endograft migration. Report once regardless of number of proximal extensions placed that session'},
+      {code:'33886', desc:'Delayed placement of distal extension prosthesis(es) — separate session; report once regardless of number of distal extensions placed that session. Do NOT use for extensions placed in the SAME session as initial TEVAR — those are bundled into 33880/33881'},
+      {code:'35606', desc:'Carotid-subclavian bypass (non-vein/synthetic conduit) — separately reportable for LSA revascularization when LSA is covered. No difference in coding whether done same-day, day-before, or unrelated to TEVAR', conditional:true},
+      {code:'35694', desc:'Subclavian-to-carotid artery transposition — use this standalone code for LSA revascularization by transposition (33889 was deleted in 2026; do not use)', conditional:true},
+      {code:'35602', desc:'Carotid-to-contralateral-carotid bypass (any indication) — new 2026 standalone code; replaces deleted 33891 for carotid-carotid crossover bypass performed with or without TEVAR', conditional:true},
+      {code:'37236', desc:'Petticoat/bare stent extension into visceral segment for dissection — separately reportable, NOT bundled into TEVAR (per SVS Q&A)', conditional:true},
+      {code:'⚠', desc:'2026 change: if a staged LSA revascularization (bypass or transposition) is performed on a different day before TEVAR, the TEVAR is a "planned staged" procedure — modifier -58 applies to the TEVAR code, not the radiology S&I (S&I codes no longer exist as separate lines)'},
+    ]},
+
+  // ── TBE — thoracic branched/fenestrated endograft ─────────────────────
+  { test:/\btbe\b|branched (?:thoracic|aortic) endograft|fenestrated thoracic|thoracic branch(?:ed)? device/i,
+    label:'TBE — thoracic branched endograft (new 2026 code)',
+    codes:[
+      {code:'33882', desc:'Deployment of branched and/or fenestrated thoracic endograft, multipiece (modular) system — includes fenestration/branch for left subclavian artery stent graft(s) and all aortic tube endograft extensions. NEW for 2026, replaces prior off-label/unlisted reporting'},
+      {code:'35606', desc:'Carotid-subclavian bypass — may still be needed for a second/contralateral branch vessel or as a backup/bailout if the branch component fails to adequately perfuse', conditional:true},
+      {code:'37236', desc:'Additional bridging stent in a branch vessel outside the manufactured branch (e.g. bridging stent extension) — verify against device IFU and payer policy before billing separately', conditional:true},
+      {code:'⚠', desc:'33882 is a single code regardless of number of branches/fenestrations in the device — do not report multiple units for a multi-branch device'},
+    ]},
+
+  // ── CAROTID-SUBCLAVIAN BYPASS (standalone, separate from TEVAR context) ─
+  { test:/carotid.{0,15}subclavian bypass|subclavian.{0,15}carotid bypass|carotid-subclavian/i,
+    label:'Carotid-subclavian bypass / LSA revascularization',
+    codes:[
+      {code:'35606', desc:'Carotid-subclavian bypass, other-than-vein (synthetic/PTFE conduit) — standard code regardless of relation to TEVAR timing'},
+      {code:'35506', desc:'Carotid-subclavian bypass, with vein graft — use if autogenous vein conduit used instead of synthetic', conditional:true},
+      {code:'35694', desc:'Subclavian-to-carotid transposition (alternative technique to bypass) — standalone code; 33889 deleted in 2026', conditional:true},
+      {code:'⚠', desc:'If performed the day before or same day as TEVAR for planned LSA coverage, this remains 35606 — there is no separate "with TEVAR" version since 33889 was deleted in 2026'},
+    ]},
+
+  // ── AORTIC ENDOGRAFT — infrarenal EVAR ────────────────────────────────
+  { test:/^(?!.*(?:fenestrated|fevar|branch)).*\b(evar|aortic endograft|aorto-?(?:aortic|uni-?iliac|bi-?iliac)|infrarenal (?:aort(?:a|ic))? endograft|aaa (?:repair|endograft|stent graft))\b/i,
+    label:'Aortic endograft — infrarenal EVAR',
+    codes:[
+      {code:'34701', desc:'Aorto-aortic tube endograft — infrarenal aorta only, non-rupture. Includes sizing, all nonselective cath, S&I, extensions from renal arteries to bifurcation, and angioplasty/stenting in that segment'},
+      {code:'34702', desc:'Same as 34701 but for RUPTURE — includes temporary aortic/iliac balloon occlusion when performed', conditional:true},
+      {code:'34703', desc:'Aorto-uni-iliac endograft — infrarenal aorta and/or iliac artery(ies), non-rupture'},
+      {code:'34704', desc:'Same as 34703 but for RUPTURE', conditional:true},
+      {code:'34705', desc:'Aorto-bi-iliac endograft (Y-shaped/bifurcated) — infrarenal aorta and both common iliac arteries, non-rupture'},
+      {code:'34706', desc:'Same as 34705 but for RUPTURE', conditional:true},
+      {code:'34707', desc:'Ilio-iliac tube endograft, non-rupture', conditional:true},
+      {code:'34708', desc:'Same as 34707 but for RUPTURE', conditional:true},
+      {code:'+34709', desc:'Add-on: distal extension prosthesis into internal iliac, external iliac, or common femoral artery — one side; report twice (no -50) for bilateral', conditional:true},
+      {code:'+34710', desc:'Add-on: delayed placement of distal or proximal extension — does not include arterial access/closure', conditional:true},
+      {code:'34713', desc:'Percutaneous access/closure of femoral artery for delivery of endograft, sheath ≥12F — separately reportable per side', conditional:true},
+      {code:'34714–34716', desc:'Open femoral or iliac artery exposure for endograft delivery — use when surgical cutdown performed instead of percutaneous access', conditional:true},
+      {code:'⚠', desc:'Never report an EVAR code with modifier -50 for bilateral — laterality is built into aorto-bi-iliac (34705/706) or reported per-side for add-ons like 34709/34717'},
+    ]},
+
+  // ── ILIAC BRANCH GRAFT DEVICE ──────────────────────────────────────────
+  { test:/iliac branch(?:ed)? (?:graft|endograft|device)|\bibd\b|branch(?:ed)? iliac (?:device|endograft)/i,
+    label:'Iliac branch device (IBD)',
+    codes:[
+      {code:'+34717', desc:'Iliac branched endograft — ADD-ON, only reportable WITH 34703/34704/34705/34706 (same session as aortic endograft). Report once per side (twice for bilateral); never use modifier -50'},
+      {code:'34718', desc:'Iliac branched endograft — STANDALONE code, used when IBD is placed as its own procedure (not same session as an aortic endograft base code). For bilateral, append modifier -50'},
+      {code:'34713', desc:'Percutaneous femoral access/closure, sheath ≥12F — separately reportable with 34718 if percutaneous', conditional:true},
+      {code:'⚠', desc:'34718 cannot be used for an acute rupture presentation — use unlisted code 37799 instead for a stand-alone IBD placed for rupture'},
+      {code:'⚠', desc:'+34717 is never billed with 34701/34702 (aorto-aortic tube) — those codes have no iliac limb to attach a branch device to'},
+    ]},
+
+  // ── FENESTRATED AORTIC ENDOGRAFT (FEVAR) ───────────────────────────────
+  { test:/\bfevar\b|fenestrated (?:aortic|visceral) (?:endograft|stent graft|repair)|fenestrated evar/i,
+    label:'Fenestrated aortic endograft (FEVAR)',
+    codes:[
+      {code:'34841', desc:'FEVAR — visceral aorta only (does not extend into common iliacs); includes ONE visceral artery endoprosthesis (SMA, celiac, or renal)'},
+      {code:'34842', desc:'Same as 34841 but with TWO visceral artery endoprostheses'},
+      {code:'34843', desc:'Same as 34841 but with THREE visceral artery endoprostheses'},
+      {code:'34844', desc:'Same as 34841 but with FOUR OR MORE visceral artery endoprostheses'},
+      {code:'34845', desc:'FEVAR — visceral aorta AND infrarenal aorta, extending into common iliac artery(ies); includes ONE visceral endoprosthesis. Includes unilateral/bilateral docking limbs'},
+      {code:'34846', desc:'Same as 34845 but with TWO visceral artery endoprostheses'},
+      {code:'34847', desc:'Same as 34845 but with THREE visceral artery endoprostheses'},
+      {code:'34848', desc:'Same as 34845 but with FOUR OR MORE visceral artery endoprostheses'},
+      {code:'34839', desc:'Pre-procedure planning/sizing for patient-specific fenestrated device — requires ≥90 min of documented physician time. Cannot be billed same day or day before the FEVAR itself; typically done weeks prior', conditional:true},
+      {code:'34709', desc:'Distal extension into internal iliac, external iliac, or common femoral — separately reportable with FEVAR (unlike proximal aortic or common-iliac-terminating extensions, which are bundled)', conditional:true},
+      {code:'⚠', desc:'Proximal aortic extensions and distal extensions terminating IN the aorta or common iliac arteries are bundled into 34841-34848 — never reported separately, regardless of how many pieces are used'},
+      {code:'⚠', desc:'37236/37237 (visceral stent) is NOT used for the fenestration-delivered endoprosthesis itself — that work is included in the base FEVAR code by vessel count'},
+    ]},
+
 ];
 
 
@@ -5288,6 +5378,20 @@ const LOOKUP_SUGGESTIONS = [
   {text:'fluoroscopy guidance', cat:'Bundle'},
   {text:'pedal access', cat:'Bundle'},
   {text:'retrograde pedal access', cat:'Bundle'},
+  // Aortic / thoracic endograft (vascular surgery)
+  {text:'tevar', cat:'Aortic'},
+  {text:'tevar left subclavian coverage', cat:'Aortic'},
+  {text:'thoracic endograft', cat:'Aortic'},
+  {text:'tbe', cat:'Aortic'},
+  {text:'branched thoracic endograft', cat:'Aortic'},
+  {text:'carotid subclavian bypass', cat:'Aortic'},
+  {text:'aortic endograft', cat:'Aortic'},
+  {text:'evar', cat:'Aortic'},
+  {text:'aorto-bi-iliac endograft', cat:'Aortic'},
+  {text:'iliac branch graft', cat:'Aortic'},
+  {text:'iliac branch device', cat:'Aortic'},
+  {text:'fenestrated aortic endograft', cat:'Aortic'},
+  {text:'fevar', cat:'Aortic'},
 ];
 
 (function(){
