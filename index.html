@@ -178,7 +178,7 @@
   .note-output{
     white-space:pre-wrap;font-family:var(--mono);font-size:12px;line-height:1.6;
     background:#FAFAF7;border:1px solid var(--line);padding:14px;border-radius:4px;
-    max-height:520px;overflow-y:auto;
+    min-height:120px;max-height:70vh;overflow-y:auto;overflow-x:hidden;resize:vertical;
   }
 
   /* ---- Code list ---- */
@@ -291,7 +291,7 @@
   <header class="top">
     <h1>Endovascular Coding</h1>
     <div class="divider"></div>
-    <div class="subtitle">No PHI · runs locally · draft only — physician review required · <span style="opacity:0.7;">v2026.1</span></div>
+    <div class="subtitle">No PHI · runs locally · draft only — physician review required · <span style="opacity:0.7;" title="Last updated 2026-07-01">v2026.2</span></div>
   </header>
 
   <div class="tabs">
@@ -320,6 +320,7 @@
     <div class="card">
       <h2><span class="n">1</span>What was done?</h2>
       <p id="noteInputHint" style="margin:0 0 6px;font-size:12px;color:var(--ink-soft);">Enter procedures as shorthand, one per vessel — e.g. <em>right EIA stent stenosis, right SFA pop occlusion stent, right AT plasty, right PT plasty</em></p>
+      <p style="margin:0 0 6px;font-size:11.5px;color:#b45309;">⚠️ Pasting a full op note? Paste only the numbered procedure list — not the indication, consent, technique narrative, or complications sections.</p>
       <textarea id="noteInput" rows="7"
         placeholder="Tap here · type, paste, or use your phone's mic&#10;e.g. right EIA stent stenosis, right SFA pop occlusion stent, right AT plasty, right PT plasty, 20 min sedation"></textarea>
       <div class="toolbar" id="normalizeToolbar" style="display:none;">
@@ -371,6 +372,7 @@
 
     <div class="card">
       <h2><span class="n">1</span>Dictation <span style="font-weight:400;color:var(--ink-soft);font-size:11px;">— findings and intervention together; treated vessels generate procedure lines automatically</span></h2>
+      <p style="margin:0 0 6px;font-size:11.5px;color:#b45309;">⚠️ Pasting from an existing op note? Paste only the findings/intervention details — not the full note (indication, consent, complications, etc.).</p>
       <textarea id="ngDictationInput" rows="6"
         placeholder="e.g. right SFA 70% stenosis stented with 6mm x 150mm Viabahn, popliteal occluded angioplasty 5mm balloon, left CIA 80% stenosis stented 8x40mm, rest patent, left femoral access Perclose closure ultrasound guidance 35 min sedation"></textarea>
       <div class="toolbar" id="ngDictationNormalizeToolbar" style="display:none;">
@@ -465,6 +467,15 @@
 <script>
 /* IR/Vascular CPT Coding Tool — © 2026 Thomas Y. Lee, MD, FACS, RVT. All rights reserved.
    Unauthorized copying or commercial use without written permission is prohibited. */
+// ---------- Version history ----------
+// v2026.2 (2026-07-01) — Added aortic/thoracic endograft Code Lookup section
+//   (TEVAR, TBE, TAMBE, EVAR, IBD/IBE, FEVAR/ZFEN); fixed sedation confirm
+//   flow (single minutes field, no start/end times, auto-commit on blur);
+//   Code Lookup clear button + select-on-focus; note-output box now
+//   resizable like the dictation textareas.
+// v2026.1 — prior baseline (LE/venous/renal/fistulogram parser fixes,
+//   2026 CPT ladder updates, Code Lookup tab, AI normalization, etc. —
+//   see project memory for full history).
 // ---------- Tabs ----------
 document.querySelectorAll('.tab').forEach(t=>{
   t.addEventListener('click', ()=>{
