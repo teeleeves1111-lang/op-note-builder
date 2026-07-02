@@ -4852,10 +4852,11 @@ const LOOKUP_BUNDLES = [
   { test:/\btbe\b|branched (?:thoracic|aortic) endograft|fenestrated thoracic|thoracic branch(?:ed)? device/i,
     label:'TBE — thoracic branched endograft (new 2026 code)',
     codes:[
-      {code:'33882', desc:'Deployment of branched and/or fenestrated thoracic endograft, multipiece (modular) system — includes fenestration/branch for left subclavian artery stent graft(s) and all aortic tube endograft extensions. NEW for 2026, replaces prior off-label/unlisted reporting'},
+      {code:'33882', desc:'Deployment of branched and/or fenestrated thoracic endograft, multipiece (modular) system — includes fenestration/branch for left subclavian artery stent graft(s) and all aortic tube endograft extensions. This is the SINGLE-branch arch device (Gore TAG TBE, LSA only). NEW for 2026, replaces prior off-label/unlisted reporting'},
       {code:'35606', desc:'Carotid-subclavian bypass — may still be needed for a second/contralateral branch vessel or as a backup/bailout if the branch component fails to adequately perfuse', conditional:true},
       {code:'37236', desc:'Additional bridging stent in a branch vessel outside the manufactured branch (e.g. bridging stent extension) — verify against device IFU and payer policy before billing separately', conditional:true},
       {code:'⚠', desc:'33882 is a single code regardless of number of branches/fenestrations in the device — do not report multiple units for a multi-branch device'},
+      {code:'⚠', desc:'Do NOT use 33882 for TAMBE (Gore Excluder Thoracoabdominal Branch Endoprosthesis) — that is a different, four-branch VISCERAL device (SMA/celiac/bilateral renal) with no dedicated CPT code. See the separate TAMBE lookup entry'},
     ]},
 
   // ── CAROTID-SUBCLAVIAN BYPASS (standalone, separate from TEVAR context) ─
@@ -4888,21 +4889,22 @@ const LOOKUP_BUNDLES = [
     ]},
 
   // ── ILIAC BRANCH GRAFT DEVICE ──────────────────────────────────────────
-  { test:/iliac branch(?:ed)? (?:graft|endograft|device)|\bibd\b|branch(?:ed)? iliac (?:device|endograft)/i,
-    label:'Iliac branch device (IBD)',
+  { test:/iliac branch(?:ed)? (?:graft|endograft|device|prosthesis|endoprosthesis)|\bibd\b|\bibe\b|branch(?:ed)? iliac (?:device|endograft)/i,
+    label:'Iliac branch device / endoprosthesis (IBD / IBE)',
     codes:[
       {code:'+34717', desc:'Iliac branched endograft — ADD-ON, only reportable WITH 34703/34704/34705/34706 (same session as aortic endograft). Report once per side (twice for bilateral); never use modifier -50'},
-      {code:'34718', desc:'Iliac branched endograft — STANDALONE code, used when IBD is placed as its own procedure (not same session as an aortic endograft base code). For bilateral, append modifier -50'},
+      {code:'34718', desc:'Iliac branched endograft — STANDALONE code, used when IBD/IBE is placed as its own procedure (not same session as an aortic endograft base code). For bilateral, append modifier -50'},
       {code:'34713', desc:'Percutaneous femoral access/closure, sheath ≥12F — separately reportable with 34718 if percutaneous', conditional:true},
       {code:'⚠', desc:'34718 cannot be used for an acute rupture presentation — use unlisted code 37799 instead for a stand-alone IBD placed for rupture'},
       {code:'⚠', desc:'+34717 is never billed with 34701/34702 (aorto-aortic tube) — those codes have no iliac limb to attach a branch device to'},
+      {code:'ⓘ', desc:'IBD (iliac branch device) and IBE (iliac branch endoprosthesis) are the same class of device under different names — Gore\u2019s product is literally named "Iliac Branch Endoprosthesis," Cook\u2019s Zenith platform calls it a branch device. Same 34717/34718 codes apply to either'},
     ]},
 
   // ── FENESTRATED AORTIC ENDOGRAFT (FEVAR) ───────────────────────────────
-  { test:/\bfevar\b|fenestrated (?:aortic|visceral) (?:endograft|stent graft|repair)|fenestrated evar/i,
-    label:'Fenestrated aortic endograft (FEVAR)',
+  { test:/\bfevar\b|\bzfen\b|zenith fenestrated|fenestrated (?:aortic|visceral) (?:endograft|stent graft|repair)|fenestrated evar/i,
+    label:'Fenestrated aortic endograft (FEVAR / ZFEN)',
     codes:[
-      {code:'34841', desc:'FEVAR — visceral aorta only (does not extend into common iliacs); includes ONE visceral artery endoprosthesis (SMA, celiac, or renal)'},
+      {code:'34841', desc:'FEVAR — visceral aorta only (does not extend into common iliacs); includes ONE visceral artery endoprosthesis (SMA, celiac, or renal). Applies to Cook ZFEN and any true fenestrated device'},
       {code:'34842', desc:'Same as 34841 but with TWO visceral artery endoprostheses'},
       {code:'34843', desc:'Same as 34841 but with THREE visceral artery endoprostheses'},
       {code:'34844', desc:'Same as 34841 but with FOUR OR MORE visceral artery endoprostheses'},
@@ -4914,6 +4916,20 @@ const LOOKUP_BUNDLES = [
       {code:'34709', desc:'Distal extension into internal iliac, external iliac, or common femoral — separately reportable with FEVAR (unlike proximal aortic or common-iliac-terminating extensions, which are bundled)', conditional:true},
       {code:'⚠', desc:'Proximal aortic extensions and distal extensions terminating IN the aorta or common iliac arteries are bundled into 34841-34848 — never reported separately, regardless of how many pieces are used'},
       {code:'⚠', desc:'37236/37237 (visceral stent) is NOT used for the fenestration-delivered endoprosthesis itself — that work is included in the base FEVAR code by vessel count'},
+      {code:'ⓘ', desc:'ZFEN (Cook Zenith Fenestrated) is a true fenestrated device, unlike TAMBE (Gore, branch/bridging-stent architecture, no dedicated code). ZFEN bills cleanly into this 34841-34848 ladder by visceral vessel count — the op note must document actual fenestrations, not a "scalloped" edge, to support these codes'},
+    ]},
+
+  // ── TAMBE — Gore Excluder Thoracoabdominal Branch Endoprosthesis ───────
+  // NOT related to TBE/33882. Off-the-shelf 4-branch device for TAAA/PAAA
+  // (SMA, celiac, bilateral renals). No dedicated CPT code exists — billed
+  // unlisted per Gore's own coding guide.
+  { test:/\btambe\b|thoracoabdominal (?:branch(?:ed)?|multibranch(?:ed)?) endo(?:prosthesis|graft)|excluder thoracoabdominal/i,
+    label:'TAMBE — Gore Excluder Thoracoabdominal Branch Endoprosthesis',
+    codes:[
+      {code:'37799', desc:'Unlisted procedure, vascular surgery — this is the code Gore\u2019s own coding guide specifies for the TAMBE procedure. There is currently NO dedicated Category I CPT code for TAMBE. Physician-side; requires a cover letter/comparator code for payer review'},
+      {code:'⚠', desc:'TAMBE is a four-branch off-the-shelf device targeting the SMA, celiac, and BOTH renal arteries for thoracoabdominal (TAAA) and pararenal (PAAA) aneurysms — it is NOT the same device as TBE (33882), which is a single-branch arch device for the left subclavian artery only. Do not code TAMBE as 33882'},
+      {code:'⚠', desc:'Do not code TAMBE using the FEVAR ladder (34841-34848) either — those codes describe fenestrated systems with a different device architecture and reimbursement structure; TAMBE\u2019s branch/bridging-stent construction hasn\u2019t been assigned to that family'},
+      {code:'ⓘ', desc:'Because this is unlisted, expect payer-specific requirements: operative report, device IFU, and often a request to reference a comparable valued code (commonly FEVAR 34844-34848, given similar visceral vessel count) to support the fee requested. Confirm the specific ask with each payer before submitting'},
     ]},
 
 ];
@@ -5383,6 +5399,8 @@ const LOOKUP_SUGGESTIONS = [
   {text:'tevar left subclavian coverage', cat:'Aortic'},
   {text:'thoracic endograft', cat:'Aortic'},
   {text:'tbe', cat:'Aortic'},
+  {text:'tambe', cat:'Aortic'},
+  {text:'thoracoabdominal branch endoprosthesis', cat:'Aortic'},
   {text:'branched thoracic endograft', cat:'Aortic'},
   {text:'carotid subclavian bypass', cat:'Aortic'},
   {text:'aortic endograft', cat:'Aortic'},
@@ -5390,8 +5408,12 @@ const LOOKUP_SUGGESTIONS = [
   {text:'aorto-bi-iliac endograft', cat:'Aortic'},
   {text:'iliac branch graft', cat:'Aortic'},
   {text:'iliac branch device', cat:'Aortic'},
+  {text:'ibe', cat:'Aortic'},
+  {text:'iliac branch endoprosthesis', cat:'Aortic'},
   {text:'fenestrated aortic endograft', cat:'Aortic'},
   {text:'fevar', cat:'Aortic'},
+  {text:'zfen', cat:'Aortic'},
+  {text:'zenith fenestrated', cat:'Aortic'},
 ];
 
 (function(){
